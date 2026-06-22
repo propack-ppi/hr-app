@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบจัดการพนักงาน Propack</title>
+<style>
+  :root {
+    --green-dark: #1F4E3D;
+    --green: #2E7D5B;
+    --green-light: #E1F5EE;
+    --gray-bg: #F6F7F5;
+    --border: #DDE3DF;
+    --text-main: #1F2421;
+    --text-mute: #6B7570;
+    --amber: #B7791F;
+    --amber-bg: #FCEFD8;
+    --red: #B3261E;
+    --red-bg: #FBE9E7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Sarabun", Tahoma, sans-serif;
+    background: var(--gray-bg);
+    color: var(--text-main);
+  }
+  header {
+    background: var(--green-dark);
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 2px 0 0; font-size: 13px; opacity: 0.85; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+  .stat-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat-card .label { font-size: 13px; color: var(--text-mute); margin-bottom: 4px; }
+  .stat-card .value { font-size: 26px; font-weight: 700; color: var(--green-dark); }
+  .stat-card .sub { font-size: 11px; color: var(--text-mute); margin-top: 4px; }
+
+  .toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .toolbar input[type=text], .toolbar select {
+    height: 42px; border: 1px solid var(--border); border-radius: 8px;
+    padding: 0 12px; font-size: 15px; background: white;
+  }
+  .toolbar input[type=text] { flex: 1; min-width: 200px; }
+  .btn {
+    height: 42px; border: none; border-radius: 8px; padding: 0 18px;
+    font-size: 15px; font-weight: 600; cursor: pointer; display: inline-flex;
+    align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn-primary { background: var(--green-dark); color: white; }
+  .btn-primary:hover { background: var(--green); }
+  .btn-secondary { background: white; border: 1px solid var(--border); color: var(--text-main); }
+  .btn-secondary:hover { background: var(--gray-bg); }
+  .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #f1c4bf; }
+
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+  thead tr { background: var(--gray-bg); }
+  th, td { padding: 10px 12px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-mute); font-weight: 600; font-size: 13px; }
+  tbody tr:hover { background: #FAFBFA; }
+  .badge { font-size: 12px; padding: 3px 10px; border-radius: 6px; font-weight: 600; }
+  .badge-active { background: var(--green-light); color: var(--green-dark); }
+  .badge-left { background: var(--amber-bg); color: var(--amber); }
+  .row-actions button { height: 30px; font-size: 13px; padding: 0 10px; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-mute); }
+  .result-count { font-size: 12px; color: var(--text-mute); margin-top: 8px; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: white; border-radius: 12px; width: 100%; max-width: 720px;
+    max-height: 90vh; overflow-y: auto; padding: 0;
+  }
+  .modal-header {
+    padding: 18px 22px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; background: white;
+  }
+  .modal-header h2 { margin: 0; font-size: 18px; }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-mute); }
+  .modal-body { padding: 18px 22px; }
+  .modal-footer {
+    padding: 16px 22px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 10px;
+    position: sticky; bottom: 0; background: white;
+  }
+
+  .field-section { margin-bottom: 20px; }
+  .field-section h3 {
+    font-size: 14px; color: var(--green-dark); margin: 0 0 10px;
+    padding-bottom: 6px; border-bottom: 2px solid var(--green-light);
+  }
+  .field-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 13px; color: var(--text-mute); font-weight: 600; }
+  .field input, .field select {
+    height: 40px; border: 1px solid var(--border); border-radius: 8px;
+    padding: 0 10px; font-size: 14px;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--green); border-color: var(--green); }
+  .field.full { grid-column: 1 / -1; }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--green-dark);
+    color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 200; display: none;
+  }
+  .toast.show { display: block; }
+  .toast.error { background: var(--red); }
+
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(255,255,255,0.7);
+    display: none; align-items: center; justify-content: center; z-index: 150;
+    font-size: 16px; color: var(--green-dark); font-weight: 600;
+  }
+  .loading-overlay.show { display: flex; }
+
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: 1fr; }
+    .field-grid { grid-template-columns: 1fr; }
+    th:nth-child(4), td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>ระบบจัดการพนักงาน</h1>
+    <p>บริษัท โปรแพค อินเตอร์เนชั่นแนล จำกัด</p>
+  </div>
+  <button class="btn btn-secondary" onclick="loadEmployees()">↻ รีเฟรชข้อมูล</button>
+</header>
+
+<div class="container">
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">พนักงานทั้งหมด</div>
+      <div class="value" id="stat-total">-</div>
+      <div class="sub">ไลน์ผลิต + ออฟฟิศ ที่ทำงานอยู่</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">ไลน์ผลิต</div>
+      <div class="value" id="stat-prod">-</div>
+      <div class="sub">ทำงานอยู่</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">ออฟฟิศ</div>
+      <div class="value" id="stat-office">-</div>
+      <div class="sub">ทำงานอยู่</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search-box" placeholder="ค้นหาชื่อ ชื่อเล่น หรือรหัสพนักงาน...">
+    <select id="filter-group">
+      <option value="all">ทุกกลุ่มงาน</option>
+      <option value="ไลน์ผลิต">ไลน์ผลิต</option>
+      <option value="ออฟฟิศ">ออฟฟิศ</option>
+      <option value="ผู้บริหาร">ผู้บริหาร</option>
+      <option value="ขนส่ง-ซัพพลายเออร์">ขนส่ง-ซัพพลายเออร์</option>
+    </select>
+    <select id="filter-status">
+      <option value="all">ทุกสถานะ</option>
+      <option value="ทำงานอยู่">ทำงานอยู่</option>
+      <option value="ลาออกแล้ว">ลาออกแล้ว</option>
+    </select>
+    <button class="btn btn-primary" onclick="openAddModal()">+ เพิ่มพนักงานใหม่</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>รหัส</th>
+          <th>ชื่อ-นามสกุล</th>
+          <th>แผนก</th>
+          <th>ประเภทจ้าง</th>
+          <th>สถานะ</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="emp-tbody"></tbody>
+    </table>
+    <div class="empty-state" id="empty-state" style="display:none;">ไม่พบพนักงานที่ตรงกับการค้นหา</div>
+  </div>
+  <p class="result-count" id="result-count"></p>
+
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modal-title">เพิ่มพนักงานใหม่</h2>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="emp-form">
+
+        <div class="field-section">
+          <h3>ข้อมูลพื้นฐาน</h3>
+          <div class="field-grid">
+            <div class="field"><label>รหัสพนักงาน *</label><input name="รหัสพนักงาน" required></div>
+            <div class="field"><label>คำนำหน้า</label>
+              <select name="คำนำหน้า"><option></option><option>นาย</option><option>นาง</option><option>นางสาว</option></select>
+            </div>
+            <div class="field"><label>ชื่อ *</label><input name="ชื่อ" required></div>
+            <div class="field"><label>นามสกุล *</label><input name="นามสกุล" required></div>
+            <div class="field"><label>ชื่อเล่น</label><input name="ชื่อเล่น"></div>
+            <div class="field"><label>กลุ่มงาน *</label>
+              <select name="กลุ่มงาน" required>
+                <option value="">เลือกกลุ่มงาน</option>
+                <option>ไลน์ผลิต</option><option>ออฟฟิศ</option><option>ผู้บริหาร</option><option>ขนส่ง-ซัพพลายเออร์</option>
+              </select>
+            </div>
+            <div class="field full"><label>แผนก *</label><input name="แผนก" required placeholder="เช่น แผนกไดคัท"></div>
+            <div class="field"><label>ตำแหน่ง</label><input name="ตำแหน่ง"></div>
+            <div class="field"><label>ประเภทการจ้าง</label>
+              <select name="ประเภทการจ้าง">
+                <option value="">เลือกประเภท</option>
+                <option>รายวัน</option><option>รายเดือน-รับรายสัปดาห์</option><option>รายเดือน-รับสิ้นเดือน</option><option>รายวัน-รับสิ้นเดือน</option>
+              </select>
+            </div>
+            <div class="field"><label>สถานะ *</label>
+              <select name="สถานะ" required><option>ทำงานอยู่</option><option>ลาออกแล้ว</option></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-section">
+          <h3>ข้อมูลส่วนตัว</h3>
+          <div class="field-grid">
+            <div class="field"><label>สัญชาติ</label><input name="สัญชาติ"></div>
+            <div class="field"><label>เลขบัตรประชาชน</label><input name="เลขบัตรประชาชน"></div>
+            <div class="field"><label>วันเดือนปีเกิด</label><input type="date" name="วันเดือนปีเกิด"></div>
+            <div class="field"><label>เบอร์ติดต่อ</label><input name="เบอร์ติดต่อ"></div>
+            <div class="field full"><label>ที่อยู่ปัจจุบัน</label><input name="ที่อยู่ปัจจุบัน"></div>
+            <div class="field full"><label>ที่อยู่ตามบัตรประชาชน</label><input name="ที่อยู่ตามบัตรประชาชน"></div>
+            <div class="field"><label>วุฒิการศึกษา</label><input name="วุฒิการศึกษา"></div>
+          </div>
+        </div>
+
+        <div class="field-section">
+          <h3>การจ้างงาน</h3>
+          <div class="field-grid">
+            <div class="field"><label>วันที่เข้างาน</label><input type="date" name="วันที่เข้างาน"></div>
+            <div class="field"><label>วันที่ออกงาน</label><input type="date" name="วันที่ออกงาน"></div>
+            <div class="field"><label>ค่าห้อง (ถ้าพักหอพักบริษัท)</label><input name="ค่าห้อง (ถ้าพักหอพักบริษัท)"></div>
+            <div class="field"><label>เงินสะสม/เดือน</label><input name="เงินสะสม/เดือน"></div>
+            <div class="field"><label>วันที่เริ่มสะสม</label><input type="date" name="วันที่เริ่มสะสม"></div>
+          </div>
+        </div>
+
+        <div class="field-section">
+          <h3>เอกสารราชการ</h3>
+          <div class="field-grid">
+            <div class="field full"><label>เลขที่หนังสือเดินทาง (ต่างด้าว)</label><input name="เลขที่หนังสือเดินทาง (ต่างด้าว)"></div>
+            <div class="field"><label>ชื่อ (ตามสรรพากร)</label><input name="ชื่อ (ตามสรรพากร)"></div>
+            <div class="field"><label>นามสกุล (ตามสรรพากร)</label><input name="นามสกุล (ตามสรรพากร)"></div>
+            <div class="field full"><label>เลขประจำตัวผู้เสียภาษี</label><input name="เลขประจำตัวผู้เสียภาษี"></div>
+            <div class="field"><label>ชื่อ (ตามประกันสังคม)</label><input name="ชื่อ (ตามประกันสังคม)"></div>
+            <div class="field"><label>นามสกุล (ตามประกันสังคม)</label><input name="นามสกุล (ตามประกันสังคม)"></div>
+            <div class="field full"><label>เลขบัตรประกันสังคม</label><input name="เลขบัตรประกันสังคม"></div>
+            <div class="field"><label>วันที่แจ้งเข้าประกันสังคม</label><input type="date" name="วันที่แจ้งเข้าประกันสังคม"></div>
+            <div class="field"><label>วันที่แจ้งออกประกันสังคม</label><input type="date" name="วันที่แจ้งออกประกันสังคม"></div>
+            <div class="field"><label>โรงพยาบาลประกันสังคม อันดับ 1</label><input name="โรงพยาบาลประกันสังคม อันดับ 1"></div>
+            <div class="field"><label>โรงพยาบาลประกันสังคม อันดับ 2</label><input name="โรงพยาบาลประกันสังคม อันดับ 2"></div>
+            <div class="field"><label>โรงพยาบาลประกันสังคม อันดับ 3</label><input name="โรงพยาบาลประกันสังคม อันดับ 3"></div>
+          </div>
+        </div>
+
+        <div class="field-section">
+          <h3>อื่นๆ</h3>
+          <div class="field-grid">
+            <div class="field full"><label>หมายเหตุ</label><input name="หมายเหตุ"></div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveEmployee()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading-overlay">กำลังบันทึกข้อมูล...</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  // ===== ตั้งค่า: วาง URL ของ Apps Script ตรงนี้ =====
+  const API_URL = "https://script.google.com/macros/s/AKfycbz9zwce9RY8xBrjb2qPjSAzLZVawVYrXKvFkhDjrrKJafpaHtOcWXr2qM6eBAVZVhSG/exec";
+
+  let employees = [];
+  let editingCode = null;
+
+  async function loadEmployees() {
+    showLoading("กำลังโหลดข้อมูล...");
+    try {
+      const res = await fetch(API_URL + "?action=list");
+      const data = await res.json();
+      employees = data.employees || [];
+      renderStats();
+      render();
+    } catch (err) {
+      showToast("โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชอีกครั้ง", true);
+    }
+    hideLoading();
+  }
+
+  function renderStats() {
+    const active = employees.filter(e => e["สถานะ"] === "ทำงานอยู่" && (e["กลุ่มงาน"] === "ไลน์ผลิต" || e["กลุ่มงาน"] === "ออฟฟิศ"));
+    document.getElementById("stat-total").textContent = active.length;
+    document.getElementById("stat-prod").textContent = active.filter(e => e["กลุ่มงาน"] === "ไลน์ผลิต").length;
+    document.getElementById("stat-office").textContent = active.filter(e => e["กลุ่มงาน"] === "ออฟฟิศ").length;
+  }
+
+  function statusBadge(status) {
+    if (status === "ทำงานอยู่") return '<span class="badge badge-active">ทำงานอยู่</span>';
+    return '<span class="badge badge-left">ลาออกแล้ว</span>';
+  }
+
+  function render() {
+    const q = document.getElementById("search-box").value.trim().toLowerCase();
+    const g = document.getElementById("filter-group").value;
+    const st = document.getElementById("filter-status").value;
+
+    const filtered = employees.filter(e => {
+      const fullname = ((e["ชื่อ"]||"") + " " + (e["นามสกุล"]||"")).toLowerCase();
+      const matchQ = !q || fullname.includes(q) || (e["ชื่อเล่น"]||"").toLowerCase().includes(q) || (e["รหัสพนักงาน"]||"").toLowerCase().includes(q);
+      const matchG = g === "all" || e["กลุ่มงาน"] === g;
+      const matchSt = st === "all" || e["สถานะ"] === st;
+      return matchQ && matchG && matchSt;
+    });
+
+    const tbody = document.getElementById("emp-tbody");
+    tbody.innerHTML = filtered.map(e => `
+      <tr>
+        <td>${e["รหัสพนักงาน"]||""}</td>
+        <td>${e["คำนำหน้า"]||""}${e["ชื่อ"]||""} ${e["นามสกุล"]||""}${e["ชื่อเล่น"] ? " ("+e["ชื่อเล่น"]+")" : ""}</td>
+        <td>${e["แผนก"]||""}</td>
+        <td>${e["ประเภทการจ้าง"]||"-"}</td>
+        <td>${statusBadge(e["สถานะ"])}</td>
+        <td class="row-actions"><button class="btn btn-secondary" onclick="openEditModal('${e["รหัสพนักงาน"]}')">แก้ไข</button></td>
+      </tr>
+    `).join("");
+
+    document.getElementById("empty-state").style.display = filtered.length === 0 ? "block" : "none";
+    document.getElementById("result-count").textContent = `แสดง ${filtered.length} จาก ${employees.length} คน`;
+  }
+
+  document.getElementById("search-box").addEventListener("input", render);
+  document.getElementById("filter-group").addEventListener("change", render);
+  document.getElementById("filter-status").addEventListener("change", render);
+
+  function openAddModal() {
+    editingCode = null;
+    document.getElementById("modal-title").textContent = "เพิ่มพนักงานใหม่";
+    document.getElementById("emp-form").reset();
+    document.querySelector('[name="สถานะ"]').value = "ทำงานอยู่";
+    document.getElementById("modal-overlay").classList.add("open");
+  }
+
+  function openEditModal(code) {
+    const emp = employees.find(e => String(e["รหัสพนักงาน"]) === String(code));
+    if (!emp) return;
+    editingCode = code;
+    document.getElementById("modal-title").textContent = "แก้ไขข้อมูลพนักงาน: " + code;
+    const form = document.getElementById("emp-form");
+    form.reset();
+    Object.keys(emp).forEach(key => {
+      const el = form.querySelector(`[name="${key}"]`);
+      if (el) el.value = emp[key] || "";
+    });
+    form.querySelector('[name="รหัสพนักงาน"]').setAttribute("readonly", true);
+    document.getElementById("modal-overlay").classList.add("open");
+  }
+
+  function closeModal() {
+    document.getElementById("modal-overlay").classList.remove("open");
+    document.getElementById("emp-form").querySelector('[name="รหัสพนักงาน"]').removeAttribute("readonly");
+  }
+
+  async function saveEmployee() {
+    const form = document.getElementById("emp-form");
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const data = {};
+    new FormData(form).forEach((value, key) => { data[key] = value; });
+
+    showLoading(editingCode ? "กำลังบันทึกการแก้ไข..." : "กำลังเพิ่มพนักงานใหม่...");
+    try {
+      const action = editingCode ? "update" : "add";
+      const body = editingCode ? { action, code: editingCode, data } : { action, data };
+      const res = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify(body)
+      });
+      const result = await res.json();
+      if (result.success) {
+        showToast(editingCode ? "บันทึกการแก้ไขเรียบร้อยแล้ว" : "เพิ่มพนักงานใหม่เรียบร้อยแล้ว");
+        closeModal();
+        await loadEmployees();
+      } else {
+        showToast(result.error || "บันทึกไม่สำเร็จ", true);
+      }
+    } catch (err) {
+      showToast("เกิดข้อผิดพลาด ลองใหม่อีกครั้ง", true);
+    }
+    hideLoading();
+  }
+
+  function showLoading(msg) {
+    const el = document.getElementById("loading-overlay");
+    el.textContent = msg;
+    el.classList.add("show");
+  }
+  function hideLoading() {
+    document.getElementById("loading-overlay").classList.remove("show");
+  }
+  function showToast(msg, isError) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className = "toast show" + (isError ? " error" : "");
+    setTimeout(() => { el.className = "toast"; }, 3000);
+  }
+
+  loadEmployees();
+</script>
+
+</body>
+</html>
