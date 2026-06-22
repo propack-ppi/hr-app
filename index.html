@@ -140,6 +140,49 @@
     .field-grid { grid-template-columns: 1fr; }
     th:nth-child(4), td:nth-child(4) { display: none; }
   }
+
+  .main-tabs { display: flex; gap: 4px; background: var(--green-dark); padding: 0 20px; }
+  .main-tab-btn {
+    background: none; border: none; color: rgba(255,255,255,0.7); padding: 12px 18px;
+    font-size: 14px; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent;
+  }
+  .main-tab-btn.active { color: white; border-bottom: 3px solid white; }
+  .main-tab-btn:hover { color: white; }
+
+  .shift-card {
+    display: flex; align-items: center; gap: 10px; border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; flex-wrap: wrap; background: white; margin-bottom: 8px;
+  }
+  .shift-card .name { font-weight: 600; font-size: 14px; min-width: 130px; }
+  .shift-card .detail { font-size: 12px; color: var(--text-mute); display: flex; gap: 14px; flex-wrap: wrap; }
+
+  .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .section-title h3 { margin: 0; font-size: 16px; }
+
+  .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .upload-box { border: 1px dashed var(--border); border-radius: 10px; padding: 20px; text-align: center; }
+  .upload-box p { margin: 8px 0 4px; font-size: 13px; color: var(--text-mute); }
+  .upload-box .example { margin: 0 0 10px; font-size: 12px; color: #9aa3a8; }
+  .upload-box input[type=file] { display: none; }
+
+  .store-bar {
+    display: flex; align-items: center; justify-content: space-between; background: var(--gray-bg);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; flex-wrap: wrap; gap: 10px;
+  }
+  .store-bar .date-picker-wrap { display: flex; align-items: center; gap: 8px; }
+  .store-bar input[type=date] {
+    height: 32px; width: 38px; padding: 0 4px; color: transparent; background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  }
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .dot-warning { background: var(--amber); }
+  .dot-success { background: #2E7D32; }
+  .legend-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; font-size: 13px; color: var(--text-mute); }
+  .legend-row span { display: inline-flex; align-items: center; gap: 4px; }
+
+  .no-data-box {
+    background: var(--gray-bg); border-radius: 8px; padding: 30px; text-align: center; color: var(--text-mute); font-size: 14px;
+  }
 </style>
 </head>
 <body>
@@ -155,6 +198,13 @@
   <button class="btn btn-secondary" onclick="loadEmployees()">↻ รีเฟรชข้อมูล</button>
 </header>
 
+<div class="main-tabs">
+  <button class="main-tab-btn active" id="maintab-employees" onclick="switchMainTab('employees')">ทำเนียบพนักงาน</button>
+  <button class="main-tab-btn" id="maintab-shifts" onclick="switchMainTab('shifts')">กำหนดกะทำงาน</button>
+  <button class="main-tab-btn" id="maintab-attendance" onclick="switchMainTab('attendance')">เช็คเวลาทำงาน</button>
+</div>
+
+<div id="mainpanel-employees">
 <div class="container">
 
   <div class="stats">
@@ -221,6 +271,106 @@
   </div>
   <p class="result-count" id="result-count"></p>
 
+</div>
+</div>
+
+<div id="mainpanel-shifts" style="display:none;">
+<div class="container">
+
+  <div class="section-title">
+    <h3>รูปแบบกะมาตรฐาน</h3>
+    <button onclick="alert('ในระบบจริง ปุ่มนี้จะเปิดฟอร์มให้กรอกชื่อกะใหม่และเวลาเข้า/เบรก/เลิกงาน')">+ เพิ่มรูปแบบกะ</button>
+  </div>
+  <div id="shift-list"></div>
+
+  <div style="margin-top: 24px;">
+    <div class="section-title"><h3>มอบหมายกะให้พนักงาน</h3></div>
+    <p style="font-size:12px; color:var(--text-mute); margin:0 0 10px;">กะของวันถัดไปจะอ้างอิงจากวันก่อนหน้าอัตโนมัติ จนกว่าจะมีการสับเปลี่ยน</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>รหัส</th><th>ชื่อ-นามสกุล</th><th>แผนก</th><th>กะที่มอบหมาย</th><th style="text-align:right;">คำขอ OT วันนี้ (ชม.)</th>
+          </tr>
+        </thead>
+        <tbody id="assign-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div id="mainpanel-attendance" style="display:none;">
+<div class="container">
+
+  <div class="upload-grid">
+    <div class="upload-box">
+      <i class="ti ti-calendar-stats" style="font-size:24px; color:var(--text-mute);"></i>
+      <p>ไฟล์เมื่อวาน (เต็มวัน) — เช็คกับใบขอ OT</p>
+      <p class="example">รองรับไฟล์ .csv จากเครื่องสแกนหน้า</p>
+      <label for="file-yesterday" class="btn btn-secondary" style="cursor:pointer; display:inline-block;">เลือกไฟล์</label>
+      <input type="file" id="file-yesterday" accept=".csv" onchange="handleFileUpload(event, 'yesterday')">
+    </div>
+    <div class="upload-box">
+      <i class="ti ti-sun" style="font-size:24px; color:var(--text-mute);"></i>
+      <p>ไฟล์เช้าวันนี้ — เช็คมา/ขาด/สาย</p>
+      <p class="example">รองรับไฟล์ .csv จากเครื่องสแกนหน้า</p>
+      <label for="file-today" class="btn btn-secondary" style="cursor:pointer; display:inline-block;">เลือกไฟล์</label>
+      <input type="file" id="file-today" accept=".csv" onchange="handleFileUpload(event, 'today')">
+    </div>
+  </div>
+
+  <div class="store-bar">
+    <span><i class="ti ti-database" style="vertical-align:-2px; font-size:14px;"></i> สถานะ: <span id="upload-status">ยังไม่มีการอัปโหลด</span></span>
+    <div class="date-picker-wrap">
+      <label style="color:var(--text-mute);">ดูข้อมูลวันที่</label>
+      <input type="date" id="view-date-picker" onchange="onDatePickerChange(event)">
+      <span id="date-readable" style="font-weight:600;"></span>
+    </div>
+  </div>
+
+  <h3 id="result-title" style="margin:0 0 10px;">ผลลัพธ์</h3>
+
+  <div id="no-data-msg" class="no-data-box">
+    <i class="ti ti-calendar-off" style="font-size:22px; display:block; margin-bottom:8px;"></i>
+    ยังไม่มีข้อมูลของวันที่นี้ กรุณาอัปโหลดไฟล์ก่อน
+  </div>
+
+  <div id="attendance-result" style="display:none;">
+    <div class="stats" style="margin-bottom: 20px;">
+      <div class="stat-card">
+        <div class="label">มาทำงาน</div>
+        <div class="value" id="stat-present">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">มาสาย</div>
+        <div class="value" id="stat-late" style="color: var(--amber);">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">ทำ OT</div>
+        <div class="value" id="stat-ot">-</div>
+      </div>
+    </div>
+
+    <div class="legend-row">
+      <span><span class="dot dot-warning"></span> ระบบเดา OT (ยังไม่มีใบขอ OT ยืนยัน)</span>
+      <span><span class="dot dot-success"></span> ยืนยันแล้ว (มีใบขอ OT)</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ชื่อ</th><th>เข้างาน</th><th>พักเที่ยง</th><th>เลิกงาน</th><th>เบรก OT / เข้า OT</th><th>เลิก OT</th><th style="text-align:right;">OT จ่ายจริง</th>
+          </tr>
+        </thead>
+        <tbody id="attendance-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
 </div>
 
 <div class="modal-overlay" id="modal-overlay">
@@ -511,6 +661,241 @@
     el.textContent = msg;
     el.className = "toast show" + (isError ? " error" : "");
     setTimeout(() => { el.className = "toast"; }, 3000);
+  }
+
+  // ===================== เฟส 2: กำหนดกะ + เช็คเวลาทำงาน =====================
+
+  const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const THAI_DAYS = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
+  function formatThaiDateFull(isoDate) {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    return `วัน${THAI_DAYS[dow]}ที่ ${d} ${THAI_MONTHS[m - 1]} ${y + 543}`;
+  }
+  function formatThaiDateShort(isoDate) {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    return `${d} ${THAI_MONTHS[m - 1]} ${y + 543}`;
+  }
+  function todayISO() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  let SHIFTS = [];
+  let ASSIGNMENTS = [];
+
+  function switchMainTab(tab) {
+    ["employees", "shifts", "attendance"].forEach(t => {
+      document.getElementById("mainpanel-" + t).style.display = (t === tab) ? "block" : "none";
+      document.getElementById("maintab-" + t).classList.toggle("active", t === tab);
+    });
+    if (tab === "shifts") loadShiftsAndAssignments();
+    if (tab === "attendance" && !document.getElementById("view-date-picker").value) {
+      document.getElementById("view-date-picker").value = todayISO();
+      onDatePickerChange({ target: { value: todayISO() } });
+    }
+  }
+
+  async function loadShiftsAndAssignments() {
+    try {
+      const [shiftsRes, employeesRes, assignRes, otRes] = await Promise.all([
+        fetch(API_URL + "?action=shifts").then(r => r.json()),
+        fetch(API_URL + "?action=list").then(r => r.json()),
+        fetch(API_URL + "?action=assignments").then(r => r.json()),
+        fetch(API_URL + "?action=ot_requests").then(r => r.json())
+      ]);
+      SHIFTS = shiftsRes.shifts || [];
+      ASSIGNMENTS = assignRes.assignments || [];
+      renderShiftList();
+      renderAssignTable(employeesRes.employees || [], otRes.ot_requests || []);
+    } catch (err) {
+      showToast("โหลดข้อมูลกะไม่สำเร็จ", true);
+    }
+  }
+
+  function renderShiftList() {
+    const el = document.getElementById("shift-list");
+    el.innerHTML = SHIFTS.map(s => {
+      if (s["เป็นกะฟรีหรือไม่"] === true || s["เป็นกะฟรีหรือไม่"] === "TRUE") {
+        return `<div class="shift-card"><div class="name">${s["ชื่อกะ"]}</div><div class="detail" style="color:#9aa3a8;">ไม่กำหนดเวลา เข้า-ออกอิสระ ใช้กฎ OT เดียวกัน</div></div>`;
+      }
+      return `<div class="shift-card">
+        <div class="name">${s["ชื่อกะ"]}</div>
+        <div class="detail">
+          <span><i class="ti ti-login" style="font-size:13px; vertical-align:-2px;"></i> เข้า ${s["เวลาเข้างาน"]}</span>
+          <span><i class="ti ti-coffee" style="font-size:13px; vertical-align:-2px;"></i> เบรก ${s["เวลาเริ่มพักเที่ยง"]}-${s["เวลากลับจากพักเที่ยง"]}</span>
+          <span><i class="ti ti-logout" style="font-size:13px; vertical-align:-2px;"></i> เลิก ${s["เวลาเลิกงาน"]}</span>
+          <span style="color:#9aa3a8;">เบรกก่อน OT 30 นาที (เมื่อ OT > 1.5 ชม.)</span>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  function getCurrentShiftId(empCode) {
+    let best = null;
+    ASSIGNMENTS.forEach(a => {
+      if (String(a["รหัสพนักงาน"]) !== String(empCode)) return;
+      if (!best || a["วันที่เริ่มใช้กะนี้"] > best["วันที่เริ่มใช้กะนี้"]) best = a;
+    });
+    return best ? best["รหัสกะ"] : "";
+  }
+
+  function renderAssignTable(employees, otRequests) {
+    const today = todayISO();
+    const el = document.getElementById("assign-tbody");
+    el.innerHTML = employees.filter(e => e["กลุ่มงาน"] === "ไลน์ผลิต" || e["กลุ่มงาน"] === "ออฟฟิศ").map(e => {
+      const currentShift = getCurrentShiftId(e["รหัสพนักงาน"]);
+      const otReq = otRequests.find(r => String(r["รหัสพนักงาน"]) === String(e["รหัสพนักงาน"]) && r["วันที่ทำ OT"] === today);
+      const otVal = otReq ? otReq["จำนวนชั่วโมง OT ที่ขอ"] : "";
+      return `<tr>
+        <td>${e["รหัสพนักงาน"]}</td>
+        <td>${e["ชื่อ"]} ${e["นามสกุล"]}</td>
+        <td>${e["แผนก"]}</td>
+        <td>
+          <select data-code="${e["รหัสพนักงาน"]}" class="shift-select" onchange="onShiftChange(event)">
+            <option value="">เลือกกะ</option>
+            ${SHIFTS.map(s => `<option value="${s["รหัสกะ"]}" ${s["รหัสกะ"] === currentShift ? "selected" : ""}>${s["ชื่อกะ"]}</option>`).join("")}
+          </select>
+        </td>
+        <td style="text-align:right;">
+          <input type="number" min="0" max="6" step="0.5" value="${otVal}" data-code="${e["รหัสพนักงาน"]}" class="ot-input" style="width:70px;" onchange="onOtChange(event)">
+        </td>
+      </tr>`;
+    }).join("");
+  }
+
+  async function onShiftChange(e) {
+    const code = e.target.dataset.code;
+    const shiftId = e.target.value;
+    if (!shiftId) return;
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "save_assignment",
+          data: { "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": todayISO(), "รหัสกะ": shiftId, "หมายเหตุ": "" }
+        })
+      });
+      showToast("บันทึกการมอบหมายกะแล้ว");
+      ASSIGNMENTS.push({ "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": todayISO(), "รหัสกะ": shiftId });
+    } catch (err) {
+      showToast("บันทึกไม่สำเร็จ", true);
+    }
+  }
+
+  async function onOtChange(e) {
+    const code = e.target.dataset.code;
+    const hours = parseFloat(e.target.value) || 0;
+    if (hours <= 0) return;
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "save_ot_request",
+          data: { "รหัสพนักงาน": code, "วันที่ทำ OT": todayISO(), "จำนวนชั่วโมง OT ที่ขอ": hours, "ผู้อนุมัติ": "", "วันที่คีย์เข้าระบบ": todayISO() }
+        })
+      });
+      showToast("บันทึกคำขอ OT แล้ว");
+    } catch (err) {
+      showToast("บันทึกไม่สำเร็จ", true);
+    }
+  }
+
+  async function handleFileUpload(event, slot) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+      const csvText = e.target.result;
+      showLoading("กำลังประมวลผลไฟล์...");
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "process_attendance", csvText: csvText, fileDateHint: null })
+        });
+        const result = await res.json();
+        if (result.success) {
+          document.getElementById("upload-status").textContent =
+            `ประมวลผลสำเร็จ: ${result.summary.processedDates.join(", ")} (${result.summary.totalRows} คน)`;
+          showToast("ประมวลผลไฟล์สำเร็จ");
+          const lastDate = result.summary.processedDates[result.summary.processedDates.length - 1];
+          document.getElementById("view-date-picker").value = lastDate;
+          onDatePickerChange({ target: { value: lastDate } });
+        } else {
+          showToast(result.error || "ประมวลผลไม่สำเร็จ", true);
+        }
+      } catch (err) {
+        showToast("เกิดข้อผิดพลาดในการอัปโหลด", true);
+      }
+      hideLoading();
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
+  function lateBadge(min) {
+    if (min === 0) return '<span style="color:#2E7D32;">ตรงเวลา</span>';
+    return `<span style="color: var(--amber);">สาย ${min} นาที</span>`;
+  }
+
+  async function onDatePickerChange(e) {
+    const dateStr = e.target.value;
+    if (!dateStr) return;
+    document.getElementById("date-readable").textContent = formatThaiDateFull(dateStr);
+    document.getElementById("result-title").textContent = "ผลลัพธ์วันที่ " + formatThaiDateShort(dateStr);
+
+    try {
+      const res = await fetch(API_URL + "?action=results&date=" + dateStr);
+      const data = await res.json();
+      const results = data.results || [];
+
+      if (!results.length) {
+        document.getElementById("no-data-msg").style.display = "block";
+        document.getElementById("attendance-result").style.display = "none";
+        return;
+      }
+      document.getElementById("no-data-msg").style.display = "none";
+      document.getElementById("attendance-result").style.display = "block";
+
+      let present = 0, late = 0, otCount = 0;
+      const employeesRes = await fetch(API_URL + "?action=list").then(r => r.json());
+      const empMap = {};
+      (employeesRes.employees || []).forEach(emp => { empMap[emp["รหัสพนักงาน"]] = emp; });
+
+      const rows = results.map(r => {
+        const emp = empMap[r["รหัสพนักงาน"]];
+        const name = emp ? emp["ชื่อ"] : r["รหัสพนักงาน"];
+        if (r["เวลาเข้างานจริง"]) present++;
+        if (parseInt(r["สายกี่นาที"]) > 0) late++;
+        if (parseFloat(r["จำนวนชั่วโมงOTที่จ่ายจริง"]) > 0) otCount++;
+
+        const dotClass = r["สถานะการยืนยันOT"] === "ยืนยันแล้ว" ? "dot-success" : "dot-warning";
+        const otBreakTime = r["เวลาเริ่มเบรกก่อนOT"]
+          ? r["เวลาเริ่มเบรกก่อนOT"] + " → " + (r["เวลาเข้าOT"] || "-")
+          : (r["เวลาเข้าOT"] || "-");
+
+        return `<tr>
+          <td>${name}</td>
+          <td>${r["เวลาเข้างานจริง"] || "-"}<br><span style="font-size:11px;">${lateBadge(parseInt(r["สายกี่นาที"]) || 0)}</span></td>
+          <td>${r["เวลาเริ่มพักเที่ยง"] || "-"} - ${r["เวลากลับจากพักเที่ยง"] || "-"}</td>
+          <td>${r["เวลาเลิกงาน"] || "-"}</td>
+          <td>${otBreakTime}</td>
+          <td>${r["เวลาเลิกOT"] || "-"}</td>
+          <td style="text-align:right;">
+            <span style="display:inline-flex; align-items:center; gap:5px;">
+              <span class="dot ${dotClass}"></span>
+              ${parseFloat(r["จำนวนชั่วโมงOTที่จ่ายจริง"]) > 0 ? r["จำนวนชั่วโมงOTที่จ่ายจริง"] + " ชม." : "-"}
+            </span>
+          </td>
+        </tr>`;
+      }).join("");
+
+      document.getElementById("attendance-tbody").innerHTML = rows;
+      document.getElementById("stat-present").textContent = present;
+      document.getElementById("stat-late").textContent = late;
+      document.getElementById("stat-ot").textContent = otCount;
+    } catch (err) {
+      showToast("โหลดผลลัพธ์ไม่สำเร็จ", true);
+    }
   }
 
   loadEmployees();
