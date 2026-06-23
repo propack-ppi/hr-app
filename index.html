@@ -369,6 +369,9 @@
               <option value="TRUE">กะฟรี (ไม่กำหนดเวลา)</option>
             </select>
           </div>
+          <div class="field"><label>สีประจำกะ</label>
+            <input type="color" name="สีกะ" value="#2E7D5B" style="height:40px; width:100%; padding:2px; cursor:pointer;">
+          </div>
         </div>
         <div id="new-shift-time-fields" class="field-grid" style="margin-top:12px;">
           <div class="field"><label>เวลาเข้างาน *</label><input type="time" name="เวลาเข้างาน"></div>
@@ -424,6 +427,12 @@
   <div class="toolbar" style="margin-bottom:12px;">
     <select id="filter-dept-attendance" onchange="renderAttendanceTable()" style="height:38px;">
       <option value="all">ทุกแผนก</option>
+    </select>
+    <select id="filter-status-attendance" onchange="renderAttendanceTable()" style="height:38px;">
+      <option value="all">ทุกสถานะ</option>
+      <option value="present">มาทำงาน</option>
+      <option value="late">มาสาย</option>
+      <option value="ot">ทำ OT</option>
     </select>
   </div>
 
@@ -1113,8 +1122,11 @@
         const pendingShiftId = pendingWeeklyAssign[pendingKey];
         const currentShiftId = pendingShiftId !== undefined ? pendingShiftId : savedShiftId;
         const isPending = pendingShiftId !== undefined;
+        const currentShift = SHIFTS.find(s => s["รหัสกะ"] === currentShiftId);
+        const shiftColor = currentShift && currentShift["สีกะ"] ? currentShift["สีกะ"] : null;
+        const bgStyle = (!isPending && shiftColor) ? `style="background:${shiftColor}22; border-color:${shiftColor};"` : "";
         return `<td>
-          <select class="weekly-shift-select ${isPending ? 'weekly-cell-pending' : ''}" data-code="${code}" data-date="${d}" onchange="onWeeklyShiftSelectChange(event)">
+          <select class="weekly-shift-select ${isPending ? 'weekly-cell-pending' : ''}" ${bgStyle} data-code="${code}" data-date="${d}" onchange="onWeeklyShiftSelectChange(event)">
             <option value="">ว่าง</option>
             ${SHIFTS.map(s => `<option value="${s["รหัสกะ"]}" ${s["รหัสกะ"] === currentShiftId ? "selected" : ""}>${s["ชื่อกะ"]}</option>`).join("")}
           </select>
@@ -1165,6 +1177,8 @@
 
     showLoading(`กำลังบันทึก ${entries.length} รายการ...`);
     let successCount = 0, failCount = 0;
+    const today = todayISO();
+    const toRecalculate = []; // รายการที่วันที่ <= วันนี้ ต้องคำนวณซ้ำอัตโนมัติ
 
     for (const [key, shiftId] of entries) {
       const [code, dateStr] = key.split("|");
@@ -1177,14 +1191,34 @@
           })
         });
         const result = await res.json();
-        if (result.success) successCount++; else failCount++;
+        if (result.success) {
+          successCount++;
+          if (dateStr <= today) toRecalculate.push({ code, dateStr });
+        } else failCount++;
       } catch (err) { failCount++; }
     }
 
     pendingWeeklyAssign = {};
 
-    if (failCount === 0) showToast(`บันทึกสำเร็จ ${successCount} รายการ`);
-    else showToast(`บันทึกสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ`, true);
+    // คำนวณซ้ำอัตโนมัติเฉพาะรายการที่วันที่ไม่เกินวันนี้ (วันถัดไปไม่ต้องคำนวณ เพราะยังไม่มีไฟล์สแกนของวันนั้น)
+    let recalcSuccess = 0;
+    if (toRecalculate.length) {
+      showLoading(`กำลังคำนวณเวลาทำงานใหม่ ${toRecalculate.length} รายการ...`);
+      for (const { code, dateStr } of toRecalculate) {
+        try {
+          const res = await fetch(API_URL, {
+            method: "POST",
+            body: JSON.stringify({ action: "recalculate_one", empCode: code, dateStr: dateStr })
+          });
+          const result = await res.json();
+          if (result.success) recalcSuccess++;
+        } catch (err) { /* ข้าม - อาจยังไม่เคยอัปโหลดไฟล์ของวันนั้น */ }
+      }
+    }
+
+    let msg = failCount === 0 ? `บันทึกสำเร็จ ${successCount} รายการ` : `บันทึกสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ`;
+    if (recalcSuccess > 0) msg += ` · คำนวณเวลาทำงานใหม่ ${recalcSuccess} รายการ`;
+    showToast(msg, failCount > 0);
 
     await loadShiftsAndAssignments();
     hideLoading();
@@ -1215,11 +1249,13 @@
   function renderShiftList() {
     const el = document.getElementById("shift-list");
     el.innerHTML = SHIFTS.map(s => {
+      const color = s["สีกะ"] || "#2E7D5B";
+      const colorDot = `<span style="display:inline-block; width:12px; height:12px; border-radius:3px; background:${color}; margin-right:8px; vertical-align:-1px;"></span>`;
       if (s["เป็นกะฟรีหรือไม่"] === true || s["เป็นกะฟรีหรือไม่"] === "TRUE") {
-        return `<div class="shift-card"><div class="name">${s["ชื่อกะ"]}</div><div class="detail" style="color:#9aa3a8;">ไม่กำหนดเวลา เข้า-ออกอิสระ ใช้กฎ OT เดียวกัน</div></div>`;
+        return `<div class="shift-card"><div class="name">${colorDot}${s["ชื่อกะ"]}</div><div class="detail" style="color:#9aa3a8;">ไม่กำหนดเวลา เข้า-ออกอิสระ ใช้กฎ OT เดียวกัน</div></div>`;
       }
       return `<div class="shift-card">
-        <div class="name">${s["ชื่อกะ"]}</div>
+        <div class="name">${colorDot}${s["ชื่อกะ"]}</div>
         <div class="detail">
           <span><i class="ti ti-login" style="font-size:13px; vertical-align:-2px;"></i> เข้า ${s["เวลาเข้างาน"]}</span>
           <span><i class="ti ti-coffee" style="font-size:13px; vertical-align:-2px;"></i> เบรก ${s["เวลาเริ่มพักเที่ยง"]}-${s["เวลากลับจากพักเที่ยง"]}</span>
@@ -1282,7 +1318,8 @@
       "เวลาเริ่มพักเที่ยง": isFree === "TRUE" ? "" : form.querySelector('[name="เวลาเริ่มพักเที่ยง"]').value,
       "เวลากลับจากพักเที่ยง": isFree === "TRUE" ? "" : form.querySelector('[name="เวลากลับจากพักเที่ยง"]').value,
       "เวลาเลิกงาน": isFree === "TRUE" ? "" : form.querySelector('[name="เวลาเลิกงาน"]').value,
-      "เป็นกะฟรีหรือไม่": isFree
+      "เป็นกะฟรีหรือไม่": isFree,
+      "สีกะ": form.querySelector('[name="สีกะ"]').value || "#2E7D5B"
     };
     showLoading("กำลังบันทึกรูปแบบกะใหม่...");
     try {
@@ -1385,7 +1422,14 @@
 
   function renderAttendanceTable() {
     const deptFilter = document.getElementById("filter-dept-attendance").value;
-    let rows = attendanceRowsCache.filter(r => deptFilter === "all" || r._dept === deptFilter);
+    const statusFilter = document.getElementById("filter-status-attendance").value;
+    let rows = attendanceRowsCache.filter(r => {
+      if (deptFilter !== "all" && r._dept !== deptFilter) return false;
+      if (statusFilter === "present" && !r["เวลาเข้างานจริง"]) return false;
+      if (statusFilter === "late" && !(parseInt(r["สายกี่นาที"]) > 0)) return false;
+      if (statusFilter === "ot" && !(parseFloat(r["จำนวนชั่วโมงOTที่จ่ายจริง"]) > 0)) return false;
+      return true;
+    });
 
     if (attendanceSortKey) {
       rows.sort((a, b) => {
