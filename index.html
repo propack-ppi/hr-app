@@ -309,61 +309,7 @@
   <div style="margin-top: 24px;">
     <div class="section-title"><h3>มอบหมายกะให้พนักงาน</h3></div>
 
-    <div style="display:flex; gap:4px; margin-bottom:16px; border-bottom:0.5px solid var(--border);">
-      <button class="main-tab-btn active" id="subtab-daily" style="color:var(--green-dark); border-bottom:2px solid var(--green-dark); padding:8px 14px; font-size:13px;" onclick="switchAssignSubTab('daily')">มอบหมายรายวัน</button>
-      <button class="main-tab-btn" id="subtab-weekly" style="color:var(--text-mute); border-bottom:2px solid transparent; padding:8px 14px; font-size:13px;" onclick="switchAssignSubTab('weekly')">ตารางสัปดาห์ (ตรวจสอบ)</button>
-    </div>
-
-    <div id="assign-daily-panel">
-
-    <div class="store-bar">
-      <div class="date-picker-wrap">
-        <label style="color:var(--text-mute);">กำลังมอบหมายกะของวันที่</label>
-        <input type="date" id="assign-date-picker" onchange="onAssignDateChange(event)">
-        <span id="assign-date-readable" style="font-weight:600;"></span>
-      </div>
-      <span style="font-size:12px; color:var(--text-mute);">กะของวันถัดไปจะอ้างอิงจากวันก่อนหน้าอัตโนมัติ จนกว่าจะมีการสับเปลี่ยน</span>
-    </div>
-
-    <div class="toolbar" style="margin-bottom:12px;">
-      <select id="filter-dept-assign" onchange="renderAssignTable()" style="height:38px;">
-        <option value="all">ทุกแผนก</option>
-      </select>
-      <select id="filter-shift-assign" onchange="renderAssignTable()" style="height:38px;">
-        <option value="all">ทุกกะ</option>
-      </select>
-      <span style="flex:1;"></span>
-      <select id="bulk-shift-select" style="height:38px;">
-        <option value="">เลือกกะที่จะมอบหมาย</option>
-      </select>
-      <button class="btn btn-secondary" onclick="applyBulkAssignToSelection()">ตั้งค่าให้คนที่เลือก</button>
-    </div>
-
-    <div id="pending-bar" style="display:none; align-items:center; justify-content:space-between; background:var(--green-light); border:1px solid var(--green-dark); border-radius:8px; padding:10px 14px; margin-bottom:12px;">
-      <span style="font-size:13px; color:var(--green-dark);"><span id="pending-count">0</span> รายการรอบันทึก — การเปลี่ยนแปลงจะยังไม่ถูกบันทึกจนกว่าจะกดปุ่ม "บันทึกการเปลี่ยนแปลง"</span>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-secondary" onclick="cancelPendingChanges()">ยกเลิกทั้งหมด</button>
-        <button class="btn btn-primary" onclick="savePendingChanges()">บันทึกการเปลี่ยนแปลง</button>
-      </div>
-    </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:30px;"><input type="checkbox" id="select-all-assign" onchange="toggleSelectAll(event)"></th>
-            <th class="sortable" data-sort-assign="รหัสพนักงาน">รหัส</th>
-            <th class="sortable" data-sort-assign="ชื่อ">ชื่อ-นามสกุล</th>
-            <th class="sortable" data-sort-assign="แผนก">แผนก</th>
-            <th class="sortable" data-sort-assign="กะ">กะที่มอบหมาย</th>
-          </tr>
-        </thead>
-        <tbody id="assign-tbody"></tbody>
-      </table>
-    </div>
-    </div>
-
-    <div id="assign-weekly-panel" style="display:none;">
+    <div id="assign-weekly-panel">
 
       <div class="store-bar">
         <div class="date-picker-wrap">
@@ -878,12 +824,7 @@
   let ASSIGNMENTS = [];
   let EMPLOYEES_CACHE = [];
   let OT_REQUESTS_CACHE = [];
-  // pendingAssign: { "รหัสพนักงาน": { shiftId, dateStr } } -- เก็บการเปลี่ยนแปลงที่ยังไม่บันทึกจริง
-  let pendingAssign = {};
   let pendingOt = {};
-
-  let assignSortKey = null;
-  let assignSortAsc = true;
 
   function switchMainTab(tab) {
     ["employees", "shifts", "attendance"].forEach(t => {
@@ -891,9 +832,8 @@
       document.getElementById("maintab-" + t).classList.toggle("active", t === tab);
     });
     if (tab === "shifts") {
-      if (!document.getElementById("assign-date-picker").value) {
-        document.getElementById("assign-date-picker").value = todayISO();
-        document.getElementById("assign-date-readable").textContent = formatThaiDateFull(todayISO());
+      if (!document.getElementById("weekly-date-picker").value) {
+        document.getElementById("weekly-date-picker").value = todayISO();
       }
       loadShiftsAndAssignments();
     }
@@ -968,7 +908,7 @@
       formatThaiDateShort(monday) + " - " + formatThaiDateShort(weekDates[6]);
 
     const thead = document.getElementById("ot-weekly-thead");
-    thead.innerHTML = "<tr><th class=\"sortable\" data-sort-ot=\"ชื่อ\">พนักงาน</th>" +
+    thead.innerHTML = "<tr><th class=\"sortable\" data-sort-ot=\"ชื่อ\">พนักงาน</th><th>แผนก</th>" +
       weekDates.map((d, i) => `<th>${dayLabels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`).join("") +
       '<th class="sortable" data-sort-ot="รวม">รวม OT</th><th class="sortable" data-sort-ot="คงเหลือ">OT คงเหลือ</th></tr>';
 
@@ -1005,6 +945,7 @@
 
       return `<tr>
         <td class="weekly-name-cell">${r.emp["ชื่อ"]} ${r.emp["นามสกุล"]}</td>
+        <td>${r.emp["แผนก"]}</td>
         ${cells}
         <td style="text-align:center; font-weight:600;">${r.total} ชม.</td>
         <td style="text-align:center;"><span class="ot-summary-cell ${remClass}">${r.remaining} ชม.</span></td>
@@ -1083,32 +1024,7 @@
     hideLoading();
   }
 
-  function onAssignDateChange(e) {
-    document.getElementById("assign-date-readable").textContent = formatThaiDateFull(e.target.value);
-    renderAssignTable();
-  }
-
-  // ===== Sub-tab: มอบหมายรายวัน vs ตารางสัปดาห์ =====
   let showSunday = false;
-
-  function switchAssignSubTab(tab) {
-    document.getElementById("assign-daily-panel").style.display = (tab === "daily") ? "block" : "none";
-    document.getElementById("assign-weekly-panel").style.display = (tab === "weekly") ? "block" : "none";
-    const dailyBtn = document.getElementById("subtab-daily");
-    const weeklyBtn = document.getElementById("subtab-weekly");
-    dailyBtn.style.color = (tab === "daily") ? "var(--green-dark)" : "var(--text-mute)";
-    dailyBtn.style.borderBottom = (tab === "daily") ? "2px solid var(--green-dark)" : "2px solid transparent";
-    weeklyBtn.style.color = (tab === "weekly") ? "var(--green-dark)" : "var(--text-mute)";
-    weeklyBtn.style.borderBottom = (tab === "weekly") ? "2px solid var(--green-dark)" : "2px solid transparent";
-
-    if (tab === "weekly") {
-      if (!document.getElementById("weekly-date-picker").value) {
-        document.getElementById("weekly-date-picker").value = todayISO();
-      }
-      populateWeeklyDeptFilter();
-      renderWeeklyTable();
-    }
-  }
 
   // คืนวันที่ของวันจันทร์ในสัปดาห์ที่มี dateStr อยู่ (ISO string)
   function getMondayOf(dateStr) {
@@ -1159,7 +1075,7 @@
       formatThaiDateShort(monday) + " - " + formatThaiDateShort(lastDate);
 
     const thead = document.getElementById("weekly-thead");
-    thead.innerHTML = '<tr><th class="sortable" data-sort-weekly="ชื่อ">พนักงาน <span class="sort-arrow">' + (weeklySortAsc ? "▲" : "▼") + '</span></th>' + weekDates.map((d, i) =>
+    thead.innerHTML = '<tr><th class="sortable" data-sort-weekly="ชื่อ">พนักงาน <span class="sort-arrow">' + (weeklySortAsc ? "▲" : "▼") + '</span></th><th>แผนก</th>' + weekDates.map((d, i) =>
       `<th>${labels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`
     ).join("") + "</tr>";
 
@@ -1186,7 +1102,7 @@
           </select>
         </td>`;
       }).join("");
-      return `<tr><td class="weekly-name-cell">${e["ชื่อ"]} ${e["นามสกุล"]}</td>${cells}</tr>`;
+      return `<tr><td class="weekly-name-cell">${e["ชื่อ"]} ${e["นามสกุล"]}</td><td>${e["แผนก"]}</td>${cells}</tr>`;
     }).join("");
 
     updateWeeklyPendingBar();
@@ -1268,12 +1184,8 @@
       );
       OT_REQUESTS_CACHE = otRes.ot_requests || [];
       renderShiftList();
-      populateAssignFilters();
-      renderAssignTable();
-      if (document.getElementById("assign-weekly-panel").style.display !== "none") {
-        populateWeeklyDeptFilter();
-        renderWeeklyTable();
-      }
+      populateWeeklyDeptFilter();
+      renderWeeklyTable();
     } catch (err) {
       showToast("โหลดข้อมูลกะไม่สำเร็จ", true);
     }
@@ -1299,159 +1211,17 @@
 
   function getShiftIdOnDate(empCode, dateStr) {
     let best = null;
-    ASSIGNMENTS.forEach(a => {
+    let bestIdx = -1;
+    ASSIGNMENTS.forEach((a, idx) => {
       if (String(a["รหัสพนักงาน"]) !== String(empCode)) return;
       if (a["วันที่เริ่มใช้กะนี้"] > dateStr) return;
-      if (!best || a["วันที่เริ่มใช้กะนี้"] > best["วันที่เริ่มใช้กะนี้"]) best = a;
+      if (!best ||
+          a["วันที่เริ่มใช้กะนี้"] > best["วันที่เริ่มใช้กะนี้"] ||
+          (a["วันที่เริ่มใช้กะนี้"] === best["วันที่เริ่มใช้กะนี้"] && idx > bestIdx)) {
+        best = a; bestIdx = idx;
+      }
     });
     return best ? best["รหัสกะ"] : "";
-  }
-
-  function populateAssignFilters() {
-    const depts = [...new Set(EMPLOYEES_CACHE.map(e => e["แผนก"]).filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
-    const deptSel = document.getElementById("filter-dept-assign");
-    const curDept = deptSel.value;
-    deptSel.innerHTML = '<option value="all">ทุกแผนก</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join("");
-    deptSel.value = curDept || "all";
-
-    const shiftOptions = SHIFTS.map(s => `<option value="${s["รหัสกะ"]}">${s["ชื่อกะ"]}</option>`).join("");
-    document.getElementById("filter-shift-assign").innerHTML = '<option value="all">ทุกกะ</option>' + shiftOptions;
-    document.getElementById("bulk-shift-select").innerHTML = '<option value="">เลือกกะที่จะมอบหมาย</option>' + shiftOptions;
-  }
-
-  function renderAssignTable() {
-    const dateStr = document.getElementById("assign-date-picker").value || todayISO();
-    const deptFilter = document.getElementById("filter-dept-assign").value;
-    const shiftFilter = document.getElementById("filter-shift-assign").value;
-
-    let rows = EMPLOYEES_CACHE.map(e => {
-      const code = e["รหัสพนักงาน"];
-      const savedShiftId = getShiftIdOnDate(code, dateStr);
-      const pendingShiftId = (pendingAssign[code] && pendingAssign[code].dateStr === dateStr) ? pendingAssign[code].shiftId : null;
-      const shiftId = pendingShiftId !== null ? pendingShiftId : savedShiftId;
-
-      return { emp: e, shiftId, isPending: pendingShiftId !== null };
-    });
-
-    rows = rows.filter(r => (deptFilter === "all" || r.emp["แผนก"] === deptFilter) && (shiftFilter === "all" || r.shiftId === shiftFilter));
-
-    if (assignSortKey) {
-      rows.sort((a, b) => {
-        let av, bv;
-        if (assignSortKey === "ชื่อ") { av = a.emp["ชื่อ"]; bv = b.emp["ชื่อ"]; }
-        else if (assignSortKey === "กะ") {
-          const sa = SHIFTS.find(s => s["รหัสกะ"] === a.shiftId); const sb = SHIFTS.find(s => s["รหัสกะ"] === b.shiftId);
-          av = sa ? sa["ชื่อกะ"] : ""; bv = sb ? sb["ชื่อกะ"] : "";
-        } else { av = a.emp[assignSortKey] || ""; bv = b.emp[assignSortKey] || ""; }
-        const cmp = String(av).localeCompare(String(bv), "th", { numeric: true });
-        return assignSortAsc ? cmp : -cmp;
-      });
-    }
-
-    const el = document.getElementById("assign-tbody");
-    el.innerHTML = rows.map(r => {
-      const e = r.emp;
-      const rowStyle = r.isPending ? 'style="background:#FFF9E6;"' : "";
-      return `<tr ${rowStyle}>
-        <td><input type="checkbox" class="assign-checkbox" value="${e["รหัสพนักงาน"]}"></td>
-        <td>${e["รหัสพนักงาน"]}</td>
-        <td>${e["ชื่อ"]} ${e["นามสกุล"]}</td>
-        <td>${e["แผนก"]}</td>
-        <td>
-          <select data-code="${e["รหัสพนักงาน"]}" class="shift-select" onchange="onShiftChange(event)">
-            <option value="">เลือกกะ</option>
-            ${SHIFTS.map(s => `<option value="${s["รหัสกะ"]}" ${s["รหัสกะ"] === r.shiftId ? "selected" : ""}>${s["ชื่อกะ"]}</option>`).join("")}
-          </select>
-        </td>
-      </tr>`;
-    }).join("");
-
-    document.getElementById("select-all-assign").checked = false;
-    updatePendingBar();
-  }
-
-  document.addEventListener("click", e => {
-    const th = e.target.closest("[data-sort-assign]");
-    if (!th) return;
-    const key = th.getAttribute("data-sort-assign");
-    if (assignSortKey === key) assignSortAsc = !assignSortAsc;
-    else { assignSortKey = key; assignSortAsc = true; }
-    renderAssignTable();
-  });
-
-  function toggleSelectAll(e) {
-    document.querySelectorAll(".assign-checkbox").forEach(cb => cb.checked = e.target.checked);
-  }
-
-  function updatePendingBar() {
-    const count = Object.keys(pendingAssign).length;
-    document.getElementById("pending-bar").style.display = count > 0 ? "flex" : "none";
-    document.getElementById("pending-count").textContent = count;
-  }
-
-  function applyBulkAssignToSelection() {
-    const shiftId = document.getElementById("bulk-shift-select").value;
-    const dateStr = document.getElementById("assign-date-picker").value || todayISO();
-    if (!shiftId) { showToast("กรุณาเลือกกะที่จะมอบหมายก่อน", true); return; }
-    const selected = Array.from(document.querySelectorAll(".assign-checkbox:checked")).map(cb => cb.value);
-    if (!selected.length) { showToast("กรุณาเลือกพนักงานที่ต้องการมอบหมายอย่างน้อย 1 คน", true); return; }
-
-    selected.forEach(code => { pendingAssign[code] = { shiftId, dateStr }; });
-    showToast(`ตั้งค่ากะให้ ${selected.length} คนแล้ว — กดปุ่ม "บันทึกการเปลี่ยนแปลง" เพื่อยืนยัน`);
-    renderAssignTable();
-  }
-
-  function onShiftChange(e) {
-    const code = e.target.dataset.code;
-    const shiftId = e.target.value;
-    const dateStr = document.getElementById("assign-date-picker").value || todayISO();
-    if (!shiftId) { delete pendingAssign[code]; }
-    else { pendingAssign[code] = { shiftId, dateStr }; }
-    updatePendingBar();
-    // ไม่ re-render ทั้งตาราง เพื่อไม่ทำลาย focus ของ dropdown ตัวอื่นที่กำลังแก้อยู่
-    const tr = e.target.closest("tr");
-    tr.style.background = "#FFF9E6";
-  }
-
-  function cancelPendingChanges() {
-    pendingAssign = {};
-    renderAssignTable();
-    showToast("ยกเลิกการเปลี่ยนแปลงที่ยังไม่บันทึกแล้ว");
-  }
-
-  async function savePendingChanges() {
-    const assignEntries = Object.entries(pendingAssign);
-    const total = assignEntries.length;
-    if (total === 0) return;
-
-    showLoading(`กำลังบันทึก ${total} รายการ...`);
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const [code, info] of assignEntries) {
-      try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "save_assignment",
-            data: { "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": info.dateStr, "รหัสกะ": info.shiftId, "หมายเหตุ": "" }
-          })
-        });
-        const result = await res.json();
-        if (result.success) successCount++; else failCount++;
-      } catch (err) { failCount++; }
-    }
-
-    pendingAssign = {};
-
-    if (failCount === 0) {
-      showToast(`บันทึกสำเร็จ ${successCount} รายการ`);
-    } else {
-      showToast(`บันทึกสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ — กรุณาลองใหม่`, true);
-    }
-
-    await loadShiftsAndAssignments();
-    hideLoading();
   }
 
   // ===== ฟอร์มเพิ่มรูปแบบกะใหม่ =====
