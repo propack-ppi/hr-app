@@ -195,6 +195,9 @@
   .weekly-cell:hover { opacity: 0.8; }
   .weekly-name-cell { font-weight: 600; position: sticky; left: 0; background: white; }
 
+  .weekly-shift-select { height: 34px; font-size: 12px; min-width: 110px; border-radius: 6px; }
+  .weekly-cell-pending { background: #FFF9E6 !important; border-color: var(--amber) !important; }
+
   .ot-day-input {
     width: 55px; height: 32px; text-align: center; font-size: 13px;
     border: 1px solid var(--border); border-radius: 6px;
@@ -377,9 +380,16 @@
         </select>
       </div>
 
+      <div id="weekly-pending-bar" style="display:none; align-items:center; justify-content:space-between; background:var(--green-light); border:1px solid var(--green-dark); border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+        <span style="font-size:13px; color:var(--green-dark);"><span id="weekly-pending-count">0</span> รายการรอบันทึก</span>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" onclick="cancelWeeklyPendingChanges()">ยกเลิกทั้งหมด</button>
+          <button class="btn btn-primary" onclick="saveWeeklyPendingChanges()">บันทึกการเปลี่ยนแปลง</button>
+        </div>
+      </div>
+
       <p style="font-size:12px; color:var(--text-mute); margin:0 0 10px;">
-        <span class="dot" style="background:var(--amber-bg); border:1px solid var(--amber); width:10px; height:10px; border-radius:3px;"></span>
-        ช่องสีส้ม = ยังไม่มีการมอบหมายกะในวันนั้น — คลิกเพื่อมอบหมาย
+        เลือกกะของแต่ละวันได้ตรงในตาราง — เลือกหลายช่องแล้วกด "บันทึกการเปลี่ยนแปลง" ครั้งเดียวตอนจบ
       </p>
 
       <div class="table-wrap">
@@ -1162,16 +1172,24 @@
 
     const tbody = document.getElementById("weekly-tbody");
     tbody.innerHTML = filtered.map(e => {
+      const code = e["รหัสพนักงาน"];
       const cells = weekDates.map(d => {
-        const shiftId = getShiftIdOnDate(e["รหัสพนักงาน"], d);
-        const shift = SHIFTS.find(s => s["รหัสกะ"] === shiftId);
-        if (shift) {
-          return `<td><span class="weekly-cell filled" onclick="openWeeklyAssignPicker('${e["รหัสพนักงาน"]}','${d}')">${shift["ชื่อกะ"]}</span></td>`;
-        }
-        return `<td><span class="weekly-cell empty" onclick="openWeeklyAssignPicker('${e["รหัสพนักงาน"]}','${d}')">ว่าง</span></td>`;
+        const savedShiftId = getShiftIdOnDate(code, d);
+        const pendingKey = code + "|" + d;
+        const pendingShiftId = pendingWeeklyAssign[pendingKey];
+        const currentShiftId = pendingShiftId !== undefined ? pendingShiftId : savedShiftId;
+        const isPending = pendingShiftId !== undefined;
+        return `<td>
+          <select class="weekly-shift-select ${isPending ? 'weekly-cell-pending' : ''}" data-code="${code}" data-date="${d}" onchange="onWeeklyShiftSelectChange(event)">
+            <option value="">ว่าง</option>
+            ${SHIFTS.map(s => `<option value="${s["รหัสกะ"]}" ${s["รหัสกะ"] === currentShiftId ? "selected" : ""}>${s["ชื่อกะ"]}</option>`).join("")}
+          </select>
+        </td>`;
       }).join("");
       return `<tr><td class="weekly-name-cell">${e["ชื่อ"]} ${e["นามสกุล"]}</td>${cells}</tr>`;
     }).join("");
+
+    updateWeeklyPendingBar();
   }
 
   document.addEventListener("click", e => {
@@ -1181,33 +1199,57 @@
     renderWeeklyTable();
   });
 
-  async function openWeeklyAssignPicker(empCode, dateStr) {
-    const shiftNames = SHIFTS.map((s, i) => `${i + 1}. ${s["ชื่อกะ"]}`).join("\n");
-    const choice = prompt(`มอบหมายกะให้วันที่ ${formatThaiDateShort(dateStr)}\nพิมพ์เลขกะที่ต้องการ:\n${shiftNames}`);
-    if (!choice) return;
-    const idx = parseInt(choice, 10) - 1;
-    if (idx < 0 || idx >= SHIFTS.length) { showToast("กรุณาพิมพ์เลขกะให้ถูกต้อง", true); return; }
-    const shiftId = SHIFTS[idx]["รหัสกะ"];
-    showLoading("กำลังบันทึก...");
-    try {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "save_assignment",
-          data: { "รหัสพนักงาน": empCode, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId, "หมายเหตุ": "" }
-        })
-      });
-      const result = await res.json();
-      if (result.success) {
-        showToast("มอบหมายกะเรียบร้อยแล้ว");
-        await loadShiftsAndAssignments();
-        renderWeeklyTable();
-      } else {
-        showToast(result.error || "บันทึกไม่สำเร็จ", true);
-      }
-    } catch (err) {
-      showToast("บันทึกไม่สำเร็จ", true);
+  let pendingWeeklyAssign = {}; // key: "รหัสพนักงาน|วันที่" -> รหัสกะ (หรือ "" สำหรับว่าง)
+
+  function onWeeklyShiftSelectChange(e) {
+    const code = e.target.dataset.code;
+    const dateStr = e.target.dataset.date;
+    const shiftId = e.target.value;
+    pendingWeeklyAssign[code + "|" + dateStr] = shiftId;
+    e.target.classList.add("weekly-cell-pending");
+    updateWeeklyPendingBar();
+  }
+
+  function updateWeeklyPendingBar() {
+    const count = Object.keys(pendingWeeklyAssign).length;
+    document.getElementById("weekly-pending-bar").style.display = count > 0 ? "flex" : "none";
+    document.getElementById("weekly-pending-count").textContent = count;
+  }
+
+  function cancelWeeklyPendingChanges() {
+    pendingWeeklyAssign = {};
+    renderWeeklyTable();
+    showToast("ยกเลิกการเปลี่ยนแปลงที่ยังไม่บันทึกแล้ว");
+  }
+
+  async function saveWeeklyPendingChanges() {
+    const entries = Object.entries(pendingWeeklyAssign).filter(([key, shiftId]) => shiftId); // ข้ามค่า "ว่าง" (ไม่มี API ลบ assignment)
+    if (!entries.length) { pendingWeeklyAssign = {}; renderWeeklyTable(); return; }
+
+    showLoading(`กำลังบันทึก ${entries.length} รายการ...`);
+    let successCount = 0, failCount = 0;
+
+    for (const [key, shiftId] of entries) {
+      const [code, dateStr] = key.split("|");
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "save_assignment",
+            data: { "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId, "หมายเหตุ": "" }
+          })
+        });
+        const result = await res.json();
+        if (result.success) successCount++; else failCount++;
+      } catch (err) { failCount++; }
     }
+
+    pendingWeeklyAssign = {};
+
+    if (failCount === 0) showToast(`บันทึกสำเร็จ ${successCount} รายการ`);
+    else showToast(`บันทึกสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ`, true);
+
+    await loadShiftsAndAssignments();
     hideLoading();
   }
 
