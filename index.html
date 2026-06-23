@@ -194,6 +194,15 @@
   .weekly-cell.empty { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber); }
   .weekly-cell:hover { opacity: 0.8; }
   .weekly-name-cell { font-weight: 600; position: sticky; left: 0; background: white; }
+
+  .ot-day-input {
+    width: 55px; height: 32px; text-align: center; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .ot-summary-cell { font-weight: 700; padding: 6px 10px; border-radius: 6px; text-align: center; display: inline-block; min-width: 60px; }
+  .ot-summary-green { background: #E8F5E9; color: #2E7D32; }
+  .ot-summary-yellow { background: var(--amber-bg); color: var(--amber); }
+  .ot-summary-red { background: var(--red-bg); color: var(--red); }
 </style>
 </head>
 <body>
@@ -324,7 +333,15 @@
       <select id="bulk-shift-select" style="height:38px;">
         <option value="">เลือกกะที่จะมอบหมาย</option>
       </select>
-      <button class="btn btn-primary" onclick="applyBulkAssign()">มอบหมายกะให้คนที่เลือก</button>
+      <button class="btn btn-secondary" onclick="applyBulkAssignToSelection()">ตั้งค่าให้คนที่เลือก</button>
+    </div>
+
+    <div id="pending-bar" style="display:none; align-items:center; justify-content:space-between; background:var(--green-light); border:1px solid var(--green-dark); border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+      <span style="font-size:13px; color:var(--green-dark);"><span id="pending-count">0</span> รายการรอบันทึก — การเปลี่ยนแปลงจะยังไม่ถูกบันทึกจนกว่าจะกดปุ่ม "บันทึกการเปลี่ยนแปลง"</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-secondary" onclick="cancelPendingChanges()">ยกเลิกทั้งหมด</button>
+        <button class="btn btn-primary" onclick="savePendingChanges()">บันทึกการเปลี่ยนแปลง</button>
+      </div>
     </div>
 
     <div class="table-wrap">
@@ -336,7 +353,6 @@
             <th class="sortable" data-sort-assign="ชื่อ">ชื่อ-นามสกุล</th>
             <th class="sortable" data-sort-assign="แผนก">แผนก</th>
             <th class="sortable" data-sort-assign="กะ">กะที่มอบหมาย</th>
-            <th style="text-align:right;">คำขอ OT วันนี้ (ชม.)</th>
           </tr>
         </thead>
         <tbody id="assign-tbody"></tbody>
@@ -416,6 +432,13 @@
 <div id="mainpanel-attendance" style="display:none;">
 <div class="container">
 
+  <div style="display:flex; gap:4px; margin-bottom:16px; border-bottom:0.5px solid var(--border);">
+    <button class="main-tab-btn active" id="atsubtab-checkin" style="color:var(--green-dark); border-bottom:2px solid var(--green-dark); padding:8px 14px; font-size:13px;" onclick="switchAttendanceSubTab('checkin')">ข้อมูลเข้างาน</button>
+    <button class="main-tab-btn" id="atsubtab-ot" style="color:var(--text-mute); border-bottom:2px solid transparent; padding:8px 14px; font-size:13px;" onclick="switchAttendanceSubTab('ot')">ข้อมูลการทำ OT</button>
+  </div>
+
+  <div id="atsub-checkin-panel">
+
   <div class="upload-grid">
     <div class="upload-box">
       <i class="ti ti-calendar-stats" style="font-size:24px; color:var(--text-mute);"></i>
@@ -474,12 +497,60 @@
       <table>
         <thead>
           <tr>
-            <th>ชื่อ</th><th>เข้างาน</th><th>พักเที่ยง</th><th>เลิกงาน</th><th>เบรก OT / เข้า OT</th><th>เลิก OT</th><th style="text-align:right;">OT จ่ายจริง</th>
+            <th class="sortable" data-sort-attendance="ชื่อ">ชื่อ</th>
+            <th class="sortable" data-sort-attendance="เข้างาน">เข้างาน</th>
+            <th>พักเที่ยง</th>
+            <th class="sortable" data-sort-attendance="เลิกงาน">เลิกงาน</th>
+            <th>เบรก OT / เข้า OT</th>
+            <th>เลิก OT</th>
+            <th class="sortable" data-sort-attendance="OT" style="text-align:right;">OT จ่ายจริง</th>
           </tr>
         </thead>
         <tbody id="attendance-tbody"></tbody>
       </table>
     </div>
+  </div>
+
+  </div>
+
+  <div id="atsub-ot-panel" style="display:none;">
+
+    <div class="store-bar">
+      <div class="date-picker-wrap">
+        <label style="color:var(--text-mute);">ดูสัปดาห์ที่มี</label>
+        <input type="date" id="ot-weekly-date-picker" onchange="onOtWeeklyDateChange(event)">
+        <span id="ot-weekly-range-readable" style="font-weight:600;"></span>
+      </div>
+      <span style="font-size:12px; color:var(--text-mute);">นับสัปดาห์ จันทร์-อาทิตย์ · OT ไม่เกิน 12 ชม./สัปดาห์ (เกินได้กรณีพิเศษ ต้องขออนุมัติ)</span>
+    </div>
+
+    <div class="toolbar" style="margin-bottom:12px;">
+      <select id="filter-dept-ot" onchange="renderOtWeeklyTable()" style="height:38px;">
+        <option value="all">ทุกแผนก</option>
+      </select>
+    </div>
+
+    <div id="ot-pending-bar" style="display:none; align-items:center; justify-content:space-between; background:var(--green-light); border:1px solid var(--green-dark); border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+      <span style="font-size:13px; color:var(--green-dark);"><span id="ot-pending-count">0</span> รายการรอบันทึก</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-secondary" onclick="cancelOtPendingChanges()">ยกเลิกทั้งหมด</button>
+        <button class="btn btn-primary" onclick="saveOtPendingChanges()">บันทึกการเปลี่ยนแปลง</button>
+      </div>
+    </div>
+
+    <p style="font-size:12px; color:var(--text-mute); margin:0 0 10px;">
+      <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#2E7D32;"></span> เหลือ > 3 ชม. &nbsp;
+      <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:var(--amber);"></span> เหลือ ≤ 3 ชม. &nbsp;
+      <span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:var(--red);"></span> เกิน 12 ชม. (ติดลบ)
+    </p>
+
+    <div class="table-wrap">
+      <table id="ot-weekly-table">
+        <thead id="ot-weekly-thead"></thead>
+        <tbody id="ot-weekly-tbody"></tbody>
+      </table>
+    </div>
+
   </div>
 
 </div>
@@ -795,9 +866,12 @@
 
   let SHIFTS = [];
   let ASSIGNMENTS = [];
-
   let EMPLOYEES_CACHE = [];
   let OT_REQUESTS_CACHE = [];
+  // pendingAssign: { "รหัสพนักงาน": { shiftId, dateStr } } -- เก็บการเปลี่ยนแปลงที่ยังไม่บันทึกจริง
+  let pendingAssign = {};
+  let pendingOt = {};
+
   let assignSortKey = null;
   let assignSortAsc = true;
 
@@ -817,6 +891,186 @@
       document.getElementById("view-date-picker").value = todayISO();
       onDatePickerChange({ target: { value: todayISO() } });
     }
+  }
+
+  function switchAttendanceSubTab(tab) {
+    document.getElementById("atsub-checkin-panel").style.display = (tab === "checkin") ? "block" : "none";
+    document.getElementById("atsub-ot-panel").style.display = (tab === "ot") ? "block" : "none";
+    const checkinBtn = document.getElementById("atsubtab-checkin");
+    const otBtn = document.getElementById("atsubtab-ot");
+    checkinBtn.style.color = (tab === "checkin") ? "var(--green-dark)" : "var(--text-mute)";
+    checkinBtn.style.borderBottom = (tab === "checkin") ? "2px solid var(--green-dark)" : "2px solid transparent";
+    otBtn.style.color = (tab === "ot") ? "var(--green-dark)" : "var(--text-mute)";
+    otBtn.style.borderBottom = (tab === "ot") ? "2px solid var(--green-dark)" : "2px solid transparent";
+
+    if (tab === "ot") {
+      if (!EMPLOYEES_CACHE.length) loadEmployeesForOt();
+      if (!document.getElementById("ot-weekly-date-picker").value) {
+        document.getElementById("ot-weekly-date-picker").value = todayISO();
+      }
+      populateOtDeptFilter();
+      renderOtWeeklyTable();
+    }
+  }
+
+  async function loadEmployeesForOt() {
+    try {
+      const [employeesRes, otRes] = await Promise.all([
+        fetch(API_URL + "?action=list").then(r => r.json()),
+        fetch(API_URL + "?action=ot_requests").then(r => r.json())
+      ]);
+      EMPLOYEES_CACHE = (employeesRes.employees || []).filter(e =>
+        (e["กลุ่มงาน"] === "ไลน์ผลิต" || e["กลุ่มงาน"] === "ออฟฟิศ") && e["สถานะ"] === "ทำงานอยู่"
+      );
+      OT_REQUESTS_CACHE = otRes.ot_requests || [];
+      populateOtDeptFilter();
+      renderOtWeeklyTable();
+    } catch (err) {
+      showToast("โหลดข้อมูลไม่สำเร็จ", true);
+    }
+  }
+
+  function populateOtDeptFilter() {
+    const depts = [...new Set(EMPLOYEES_CACHE.map(e => e["แผนก"]).filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
+    const sel = document.getElementById("filter-dept-ot");
+    const cur = sel.value;
+    sel.innerHTML = '<option value="all">ทุกแผนก</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join("");
+    sel.value = cur || "all";
+  }
+
+  function onOtWeeklyDateChange(e) { renderOtWeeklyTable(); }
+
+  function getOtHoursForDate(empCode, dateStr) {
+    if (pendingOt[empCode] && pendingOt[empCode][dateStr] !== undefined) {
+      return pendingOt[empCode][dateStr];
+    }
+    const req = OT_REQUESTS_CACHE.find(r => String(r["รหัสพนักงาน"]) === String(empCode) && r["วันที่ทำ OT"] === dateStr);
+    return req ? (parseFloat(req["จำนวนชั่วโมง OT ที่ขอ"]) || 0) : 0;
+  }
+
+  function renderOtWeeklyTable() {
+    const pickerVal = document.getElementById("ot-weekly-date-picker").value || todayISO();
+    const monday = getMondayOf(pickerVal);
+    const dayLabels = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."];
+    const weekDates = dayLabels.map((_, i) => addDays(monday, i));
+
+    document.getElementById("ot-weekly-range-readable").textContent =
+      formatThaiDateShort(monday) + " - " + formatThaiDateShort(weekDates[6]);
+
+    const thead = document.getElementById("ot-weekly-thead");
+    thead.innerHTML = "<tr><th class=\"sortable\" data-sort-ot=\"ชื่อ\">พนักงาน</th>" +
+      weekDates.map((d, i) => `<th>${dayLabels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`).join("") +
+      '<th class="sortable" data-sort-ot="รวม">รวม OT</th><th class="sortable" data-sort-ot="คงเหลือ">OT คงเหลือ</th></tr>';
+
+    const deptFilter = document.getElementById("filter-dept-ot").value;
+    let rows = EMPLOYEES_CACHE.filter(e => deptFilter === "all" || e["แผนก"] === deptFilter).map(e => {
+      const dayHours = weekDates.map(d => getOtHoursForDate(e["รหัสพนักงาน"], d));
+      const total = dayHours.reduce((a, b) => a + b, 0);
+      const remaining = 12 - total;
+      return { emp: e, dayHours, total, remaining };
+    });
+
+    if (otSortKey) {
+      rows.sort((a, b) => {
+        let av, bv;
+        if (otSortKey === "ชื่อ") { av = a.emp["ชื่อ"]; bv = b.emp["ชื่อ"]; }
+        else if (otSortKey === "รวม") { av = a.total; bv = b.total; }
+        else if (otSortKey === "คงเหลือ") { av = a.remaining; bv = b.remaining; }
+        const cmp = (typeof av === "number") ? av - bv : String(av).localeCompare(String(bv), "th", { numeric: true });
+        return otSortAsc ? cmp : -cmp;
+      });
+    }
+
+    const tbody = document.getElementById("ot-weekly-tbody");
+    tbody.innerHTML = rows.map(r => {
+      const code = r.emp["รหัสพนักงาน"];
+      const cells = weekDates.map((d, i) => {
+        const val = r.dayHours[i];
+        return `<td><input type="number" min="0" max="12" step="0.5" class="ot-day-input" value="${val || ""}" data-code="${code}" data-date="${d}" onchange="onOtDayChange(event)"></td>`;
+      }).join("");
+
+      let remClass = "ot-summary-green";
+      if (r.remaining < 0) remClass = "ot-summary-red";
+      else if (r.remaining <= 3) remClass = "ot-summary-yellow";
+
+      return `<tr>
+        <td class="weekly-name-cell">${r.emp["ชื่อ"]} ${r.emp["นามสกุล"]}</td>
+        ${cells}
+        <td style="text-align:center; font-weight:600;">${r.total} ชม.</td>
+        <td style="text-align:center;"><span class="ot-summary-cell ${remClass}">${r.remaining} ชม.</span></td>
+      </tr>`;
+    }).join("");
+
+    updateOtPendingBar();
+  }
+
+  let otSortKey = null;
+  let otSortAsc = true;
+  document.addEventListener("click", e => {
+    const th = e.target.closest("[data-sort-ot]");
+    if (!th) return;
+    const key = th.getAttribute("data-sort-ot");
+    if (otSortKey === key) otSortAsc = !otSortAsc;
+    else { otSortKey = key; otSortAsc = true; }
+    renderOtWeeklyTable();
+  });
+
+  function onOtDayChange(e) {
+    const code = e.target.dataset.code;
+    const dateStr = e.target.dataset.date;
+    const hours = parseFloat(e.target.value) || 0;
+    if (!pendingOt[code]) pendingOt[code] = {};
+    pendingOt[code][dateStr] = hours;
+    updateOtPendingBar();
+    renderOtWeeklyTable();
+  }
+
+  function updateOtPendingBar() {
+    let count = 0;
+    Object.values(pendingOt).forEach(dates => { count += Object.keys(dates).length; });
+    document.getElementById("ot-pending-bar").style.display = count > 0 ? "flex" : "none";
+    document.getElementById("ot-pending-count").textContent = count;
+  }
+
+  function cancelOtPendingChanges() {
+    pendingOt = {};
+    renderOtWeeklyTable();
+    showToast("ยกเลิกการเปลี่ยนแปลงที่ยังไม่บันทึกแล้ว");
+  }
+
+  async function saveOtPendingChanges() {
+    const entries = [];
+    Object.entries(pendingOt).forEach(([code, dates]) => {
+      Object.entries(dates).forEach(([dateStr, hours]) => {
+        entries.push({ code, dateStr, hours });
+      });
+    });
+    if (!entries.length) return;
+
+    showLoading(`กำลังบันทึก ${entries.length} รายการ...`);
+    let successCount = 0, failCount = 0;
+
+    for (const { code, dateStr, hours } of entries) {
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "save_ot_request",
+            data: { "รหัสพนักงาน": code, "วันที่ทำ OT": dateStr, "จำนวนชั่วโมง OT ที่ขอ": hours, "ผู้อนุมัติ": "", "วันที่คีย์เข้าระบบ": todayISO() }
+          })
+        });
+        const result = await res.json();
+        if (result.success) successCount++; else failCount++;
+      } catch (err) { failCount++; }
+    }
+
+    pendingOt = {};
+
+    if (failCount === 0) showToast(`บันทึกสำเร็จ ${successCount} รายการ`);
+    else showToast(`บันทึกสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ`, true);
+
+    await loadEmployeesForOt();
+    hideLoading();
   }
 
   function onAssignDateChange(e) {
@@ -880,6 +1134,8 @@
     sel.value = cur || "all";
   }
 
+  let weeklySortAsc = true;
+
   function renderWeeklyTable() {
     const pickerVal = document.getElementById("weekly-date-picker").value || todayISO();
     const monday = getMondayOf(pickerVal);
@@ -893,12 +1149,16 @@
       formatThaiDateShort(monday) + " - " + formatThaiDateShort(lastDate);
 
     const thead = document.getElementById("weekly-thead");
-    thead.innerHTML = "<tr><th>พนักงาน</th>" + weekDates.map((d, i) =>
+    thead.innerHTML = '<tr><th class="sortable" data-sort-weekly="ชื่อ">พนักงาน <span class="sort-arrow">' + (weeklySortAsc ? "▲" : "▼") + '</span></th>' + weekDates.map((d, i) =>
       `<th>${labels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`
     ).join("") + "</tr>";
 
     const deptFilter = document.getElementById("filter-dept-weekly").value;
-    const filtered = EMPLOYEES_CACHE.filter(e => deptFilter === "all" || e["แผนก"] === deptFilter);
+    let filtered = EMPLOYEES_CACHE.filter(e => deptFilter === "all" || e["แผนก"] === deptFilter);
+    filtered = [...filtered].sort((a, b) => {
+      const cmp = String(a["ชื่อ"]).localeCompare(String(b["ชื่อ"]), "th", { numeric: true });
+      return weeklySortAsc ? cmp : -cmp;
+    });
 
     const tbody = document.getElementById("weekly-tbody");
     tbody.innerHTML = filtered.map(e => {
@@ -914,6 +1174,13 @@
     }).join("");
   }
 
+  document.addEventListener("click", e => {
+    const th = e.target.closest("[data-sort-weekly]");
+    if (!th) return;
+    weeklySortAsc = !weeklySortAsc;
+    renderWeeklyTable();
+  });
+
   async function openWeeklyAssignPicker(empCode, dateStr) {
     const shiftNames = SHIFTS.map((s, i) => `${i + 1}. ${s["ชื่อกะ"]}`).join("\n");
     const choice = prompt(`มอบหมายกะให้วันที่ ${formatThaiDateShort(dateStr)}\nพิมพ์เลขกะที่ต้องการ:\n${shiftNames}`);
@@ -923,16 +1190,21 @@
     const shiftId = SHIFTS[idx]["รหัสกะ"];
     showLoading("กำลังบันทึก...");
     try {
-      await fetch(API_URL, {
+      const res = await fetch(API_URL, {
         method: "POST",
         body: JSON.stringify({
           action: "save_assignment",
           data: { "รหัสพนักงาน": empCode, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId, "หมายเหตุ": "" }
         })
       });
-      ASSIGNMENTS.push({ "รหัสพนักงาน": empCode, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId });
-      showToast("มอบหมายกะเรียบร้อยแล้ว");
-      renderWeeklyTable();
+      const result = await res.json();
+      if (result.success) {
+        showToast("มอบหมายกะเรียบร้อยแล้ว");
+        await loadShiftsAndAssignments();
+        renderWeeklyTable();
+      } else {
+        showToast(result.error || "บันทึกไม่สำเร็จ", true);
+      }
     } catch (err) {
       showToast("บันทึกไม่สำเร็จ", true);
     }
@@ -949,7 +1221,9 @@
       ]);
       SHIFTS = shiftsRes.shifts || [];
       ASSIGNMENTS = assignRes.assignments || [];
-      EMPLOYEES_CACHE = (employeesRes.employees || []).filter(e => e["กลุ่มงาน"] === "ไลน์ผลิต" || e["กลุ่มงาน"] === "ออฟฟิศ");
+      EMPLOYEES_CACHE = (employeesRes.employees || []).filter(e =>
+        (e["กลุ่มงาน"] === "ไลน์ผลิต" || e["กลุ่มงาน"] === "ออฟฟิศ") && e["สถานะ"] === "ทำงานอยู่"
+      );
       OT_REQUESTS_CACHE = otRes.ot_requests || [];
       renderShiftList();
       populateAssignFilters();
@@ -1009,9 +1283,12 @@
     const shiftFilter = document.getElementById("filter-shift-assign").value;
 
     let rows = EMPLOYEES_CACHE.map(e => {
-      const shiftId = getShiftIdOnDate(e["รหัสพนักงาน"], dateStr);
-      const otReq = OT_REQUESTS_CACHE.find(r => String(r["รหัสพนักงาน"]) === String(e["รหัสพนักงาน"]) && r["วันที่ทำ OT"] === dateStr);
-      return { emp: e, shiftId, otVal: otReq ? otReq["จำนวนชั่วโมง OT ที่ขอ"] : "" };
+      const code = e["รหัสพนักงาน"];
+      const savedShiftId = getShiftIdOnDate(code, dateStr);
+      const pendingShiftId = (pendingAssign[code] && pendingAssign[code].dateStr === dateStr) ? pendingAssign[code].shiftId : null;
+      const shiftId = pendingShiftId !== null ? pendingShiftId : savedShiftId;
+
+      return { emp: e, shiftId, isPending: pendingShiftId !== null };
     });
 
     rows = rows.filter(r => (deptFilter === "all" || r.emp["แผนก"] === deptFilter) && (shiftFilter === "all" || r.shiftId === shiftFilter));
@@ -1032,7 +1309,8 @@
     const el = document.getElementById("assign-tbody");
     el.innerHTML = rows.map(r => {
       const e = r.emp;
-      return `<tr>
+      const rowStyle = r.isPending ? 'style="background:#FFF9E6;"' : "";
+      return `<tr ${rowStyle}>
         <td><input type="checkbox" class="assign-checkbox" value="${e["รหัสพนักงาน"]}"></td>
         <td>${e["รหัสพนักงาน"]}</td>
         <td>${e["ชื่อ"]} ${e["นามสกุล"]}</td>
@@ -1043,13 +1321,11 @@
             ${SHIFTS.map(s => `<option value="${s["รหัสกะ"]}" ${s["รหัสกะ"] === r.shiftId ? "selected" : ""}>${s["ชื่อกะ"]}</option>`).join("")}
           </select>
         </td>
-        <td style="text-align:right;">
-          <input type="number" min="0" max="6" step="0.5" value="${r.otVal}" data-code="${e["รหัสพนักงาน"]}" class="ot-input" style="width:70px;" onchange="onOtChange(event)">
-        </td>
       </tr>`;
     }).join("");
 
     document.getElementById("select-all-assign").checked = false;
+    updatePendingBar();
   }
 
   document.addEventListener("click", e => {
@@ -1065,70 +1341,75 @@
     document.querySelectorAll(".assign-checkbox").forEach(cb => cb.checked = e.target.checked);
   }
 
-  async function applyBulkAssign() {
+  function updatePendingBar() {
+    const count = Object.keys(pendingAssign).length;
+    document.getElementById("pending-bar").style.display = count > 0 ? "flex" : "none";
+    document.getElementById("pending-count").textContent = count;
+  }
+
+  function applyBulkAssignToSelection() {
     const shiftId = document.getElementById("bulk-shift-select").value;
     const dateStr = document.getElementById("assign-date-picker").value || todayISO();
     if (!shiftId) { showToast("กรุณาเลือกกะที่จะมอบหมายก่อน", true); return; }
     const selected = Array.from(document.querySelectorAll(".assign-checkbox:checked")).map(cb => cb.value);
     if (!selected.length) { showToast("กรุณาเลือกพนักงานที่ต้องการมอบหมายอย่างน้อย 1 คน", true); return; }
 
-    showLoading(`กำลังมอบหมายกะให้ ${selected.length} คน...`);
-    try {
-      for (const code of selected) {
-        await fetch(API_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            action: "save_assignment",
-            data: { "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId, "หมายเหตุ": "" }
-          })
-        });
-        ASSIGNMENTS.push({ "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId });
-      }
-      showToast(`มอบหมายกะให้ ${selected.length} คนเรียบร้อยแล้ว`);
-      renderAssignTable();
-    } catch (err) {
-      showToast("มอบหมายกะไม่สำเร็จ", true);
-    }
-    hideLoading();
+    selected.forEach(code => { pendingAssign[code] = { shiftId, dateStr }; });
+    showToast(`ตั้งค่ากะให้ ${selected.length} คนแล้ว — กดปุ่ม "บันทึกการเปลี่ยนแปลง" เพื่อยืนยัน`);
+    renderAssignTable();
   }
 
-  async function onShiftChange(e) {
+  function onShiftChange(e) {
     const code = e.target.dataset.code;
     const shiftId = e.target.value;
     const dateStr = document.getElementById("assign-date-picker").value || todayISO();
-    if (!shiftId) return;
-    try {
-      await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "save_assignment",
-          data: { "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId, "หมายเหตุ": "" }
-        })
-      });
-      showToast("บันทึกการมอบหมายกะแล้ว");
-      ASSIGNMENTS.push({ "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": dateStr, "รหัสกะ": shiftId });
-    } catch (err) {
-      showToast("บันทึกไม่สำเร็จ", true);
-    }
+    if (!shiftId) { delete pendingAssign[code]; }
+    else { pendingAssign[code] = { shiftId, dateStr }; }
+    updatePendingBar();
+    // ไม่ re-render ทั้งตาราง เพื่อไม่ทำลาย focus ของ dropdown ตัวอื่นที่กำลังแก้อยู่
+    const tr = e.target.closest("tr");
+    tr.style.background = "#FFF9E6";
   }
 
-  async function onOtChange(e) {
-    const code = e.target.dataset.code;
-    const hours = parseFloat(e.target.value) || 0;
-    const dateStr = document.getElementById("assign-date-picker").value || todayISO();
-    if (hours <= 0) return;
-    try {
-      await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "save_ot_request",
-          data: { "รหัสพนักงาน": code, "วันที่ทำ OT": dateStr, "จำนวนชั่วโมง OT ที่ขอ": hours, "ผู้อนุมัติ": "", "วันที่คีย์เข้าระบบ": todayISO() }
-        })
-      });
-      showToast("บันทึกคำขอ OT แล้ว");
-    } catch (err) {
-      showToast("บันทึกไม่สำเร็จ", true);
+  function cancelPendingChanges() {
+    pendingAssign = {};
+    renderAssignTable();
+    showToast("ยกเลิกการเปลี่ยนแปลงที่ยังไม่บันทึกแล้ว");
+  }
+
+  async function savePendingChanges() {
+    const assignEntries = Object.entries(pendingAssign);
+    const total = assignEntries.length;
+    if (total === 0) return;
+
+    showLoading(`กำลังบันทึก ${total} รายการ...`);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const [code, info] of assignEntries) {
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "save_assignment",
+            data: { "รหัสพนักงาน": code, "วันที่เริ่มใช้กะนี้": info.dateStr, "รหัสกะ": info.shiftId, "หมายเหตุ": "" }
+          })
+        });
+        const result = await res.json();
+        if (result.success) successCount++; else failCount++;
+      } catch (err) { failCount++; }
     }
+
+    pendingAssign = {};
+
+    if (failCount === 0) {
+      showToast(`บันทึกสำเร็จ ${successCount} รายการ`);
+    } else {
+      showToast(`บันทึกสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ — กรุณาลองใหม่`, true);
+    }
+
+    await loadShiftsAndAssignments();
+    hideLoading();
   }
 
   // ===== ฟอร์มเพิ่มรูปแบบกะใหม่ =====
@@ -1223,6 +1504,10 @@
     return `<span style="color: var(--amber);">สาย ${min} นาที</span>`;
   }
 
+  let attendanceRowsCache = [];
+  let attendanceSortKey = null;
+  let attendanceSortAsc = true;
+
   async function onDatePickerChange(e) {
     const dateStr = e.target.value;
     if (!dateStr) return;
@@ -1242,47 +1527,78 @@
       document.getElementById("no-data-msg").style.display = "none";
       document.getElementById("attendance-result").style.display = "block";
 
-      let present = 0, late = 0, otCount = 0;
       const employeesRes = await fetch(API_URL + "?action=list").then(r => r.json());
       const empMap = {};
       (employeesRes.employees || []).forEach(emp => { empMap[emp["รหัสพนักงาน"]] = emp; });
 
-      const rows = results.map(r => {
+      attendanceRowsCache = results.map(r => {
         const emp = empMap[r["รหัสพนักงาน"]];
         const name = emp ? emp["ชื่อ"] : r["รหัสพนักงาน"];
-        if (r["เวลาเข้างานจริง"]) present++;
-        if (parseInt(r["สายกี่นาที"]) > 0) late++;
-        if (parseFloat(r["จำนวนชั่วโมงOTที่จ่ายจริง"]) > 0) otCount++;
+        return { ...r, _name: name };
+      });
 
-        const dotClass = r["สถานะการยืนยันOT"] === "ยืนยันแล้ว" ? "dot-success" : "dot-warning";
-        const otBreakTime = r["เวลาเริ่มเบรกก่อนOT"]
-          ? r["เวลาเริ่มเบรกก่อนOT"] + " → " + (r["เวลาเข้าOT"] || "-")
-          : (r["เวลาเข้าOT"] || "-");
-
-        return `<tr>
-          <td>${name}</td>
-          <td>${r["เวลาเข้างานจริง"] || "-"}<br><span style="font-size:11px;">${lateBadge(parseInt(r["สายกี่นาที"]) || 0)}</span></td>
-          <td>${r["เวลาเริ่มพักเที่ยง"] || "-"} - ${r["เวลากลับจากพักเที่ยง"] || "-"}</td>
-          <td>${r["เวลาเลิกงาน"] || "-"}</td>
-          <td>${otBreakTime}</td>
-          <td>${r["เวลาเลิกOT"] || "-"}</td>
-          <td style="text-align:right;">
-            <span style="display:inline-flex; align-items:center; gap:5px;">
-              <span class="dot ${dotClass}"></span>
-              ${parseFloat(r["จำนวนชั่วโมงOTที่จ่ายจริง"]) > 0 ? r["จำนวนชั่วโมงOTที่จ่ายจริง"] + " ชม." : "-"}
-            </span>
-          </td>
-        </tr>`;
-      }).join("");
-
-      document.getElementById("attendance-tbody").innerHTML = rows;
-      document.getElementById("stat-present").textContent = present;
-      document.getElementById("stat-late").textContent = late;
-      document.getElementById("stat-ot").textContent = otCount;
+      renderAttendanceTable();
     } catch (err) {
       showToast("โหลดผลลัพธ์ไม่สำเร็จ", true);
     }
   }
+
+  function renderAttendanceTable() {
+    let rows = [...attendanceRowsCache];
+
+    if (attendanceSortKey) {
+      rows.sort((a, b) => {
+        let av, bv;
+        if (attendanceSortKey === "ชื่อ") { av = a._name; bv = b._name; }
+        else if (attendanceSortKey === "เข้างาน") { av = a["เวลาเข้างานจริง"] || ""; bv = b["เวลาเข้างานจริง"] || ""; }
+        else if (attendanceSortKey === "เลิกงาน") { av = a["เวลาเลิกงาน"] || ""; bv = b["เวลาเลิกงาน"] || ""; }
+        else if (attendanceSortKey === "OT") { av = parseFloat(a["จำนวนชั่วโมงOTที่จ่ายจริง"]) || 0; bv = parseFloat(b["จำนวนชั่วโมงOTที่จ่ายจริง"]) || 0; }
+        const cmp = (typeof av === "number") ? av - bv : String(av).localeCompare(String(bv), "th", { numeric: true });
+        return attendanceSortAsc ? cmp : -cmp;
+      });
+    }
+
+    let present = 0, late = 0, otCount = 0;
+    const rowsHtml = rows.map(r => {
+      if (r["เวลาเข้างานจริง"]) present++;
+      if (parseInt(r["สายกี่นาที"]) > 0) late++;
+      if (parseFloat(r["จำนวนชั่วโมงOTที่จ่ายจริง"]) > 0) otCount++;
+
+      const dotClass = r["สถานะการยืนยันOT"] === "ยืนยันแล้ว" ? "dot-success" : "dot-warning";
+      const otBreakTime = r["เวลาเริ่มเบรกก่อนOT"]
+        ? r["เวลาเริ่มเบรกก่อนOT"] + " → " + (r["เวลาเข้าOT"] || "-")
+        : (r["เวลาเข้าOT"] || "-");
+
+      return `<tr>
+        <td>${r._name}</td>
+        <td>${r["เวลาเข้างานจริง"] || "-"}<br><span style="font-size:11px;">${lateBadge(parseInt(r["สายกี่นาที"]) || 0)}</span></td>
+        <td>${r["เวลาเริ่มพักเที่ยง"] || "-"} - ${r["เวลากลับจากพักเที่ยง"] || "-"}</td>
+        <td>${r["เวลาเลิกงาน"] || "-"}</td>
+        <td>${otBreakTime}</td>
+        <td>${r["เวลาเลิกOT"] || "-"}</td>
+        <td style="text-align:right;">
+          <span style="display:inline-flex; align-items:center; gap:5px;">
+            <span class="dot ${dotClass}"></span>
+            ${parseFloat(r["จำนวนชั่วโมงOTที่จ่ายจริง"]) > 0 ? r["จำนวนชั่วโมงOTที่จ่ายจริง"] + " ชม." : "-"}
+          </span>
+        </td>
+      </tr>`;
+    }).join("");
+
+    document.getElementById("attendance-tbody").innerHTML = rowsHtml;
+    document.getElementById("stat-present").textContent = present;
+    document.getElementById("stat-late").textContent = late;
+    document.getElementById("stat-ot").textContent = otCount;
+  }
+
+  document.addEventListener("click", e => {
+    const th = e.target.closest("[data-sort-attendance]");
+    if (!th) return;
+    const key = th.getAttribute("data-sort-attendance");
+    if (attendanceSortKey === key) attendanceSortAsc = !attendanceSortAsc;
+    else { attendanceSortKey = key; attendanceSortAsc = true; }
+    renderAttendanceTable();
+  });
 
   loadEmployees();
 </script>
