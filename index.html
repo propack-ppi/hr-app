@@ -185,7 +185,7 @@
   }
 
   #weekly-table { font-size: 13px; }
-  #weekly-table th, #weekly-table td { white-space: nowrap; }
+  #weekly-table th, #weekly-table td { white-space: nowrap; padding: 6px 4px; }
   .weekly-cell {
     cursor: pointer; padding: 6px 10px; border-radius: 6px; display: inline-block;
     min-width: 80px; text-align: center; font-size: 12px;
@@ -195,7 +195,7 @@
   .weekly-cell:hover { opacity: 0.8; }
   .weekly-name-cell { font-weight: 600; position: sticky; left: 0; background: white; }
 
-  .weekly-shift-select { height: 34px; font-size: 12px; min-width: 110px; border-radius: 6px; }
+  .weekly-shift-select { height: 32px; font-size: 11px; min-width: 56px; max-width: 70px; width: 100%; border-radius: 6px; padding: 0 2px; }
   .weekly-cell-pending { background: #FFF9E6 !important; border-color: var(--amber) !important; }
 
   .ot-day-input {
@@ -421,6 +421,12 @@
     </div>
   </div>
 
+  <div class="toolbar" style="margin-bottom:12px;">
+    <select id="filter-dept-attendance" onchange="renderAttendanceTable()" style="height:38px;">
+      <option value="all">ทุกแผนก</option>
+    </select>
+  </div>
+
   <h3 id="result-title" style="margin:0 0 10px;">ผลลัพธ์</h3>
 
   <div id="no-data-msg" class="no-data-box">
@@ -454,6 +460,7 @@
         <thead>
           <tr>
             <th class="sortable" data-sort-attendance="ชื่อ">ชื่อ</th>
+            <th class="sortable" data-sort-attendance="แผนก">แผนก</th>
             <th class="sortable" data-sort-attendance="เข้างาน">เข้างาน</th>
             <th>พักเที่ยง</th>
             <th class="sortable" data-sort-attendance="เลิกงาน">เลิกงาน</th>
@@ -908,9 +915,14 @@
       formatThaiDateShort(monday) + " - " + formatThaiDateShort(weekDates[6]);
 
     const thead = document.getElementById("ot-weekly-thead");
-    thead.innerHTML = "<tr><th class=\"sortable\" data-sort-ot=\"ชื่อ\">พนักงาน</th><th>แผนก</th>" +
-      weekDates.map((d, i) => `<th>${dayLabels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`).join("") +
-      '<th class="sortable" data-sort-ot="รวม">รวม OT</th><th class="sortable" data-sort-ot="คงเหลือ">OT คงเหลือ</th></tr>';
+    const otArrow = (key) => otSortKey === key ? (otSortAsc ? " ▲" : " ▼") : "";
+    thead.innerHTML = `<tr>
+      <th class="sortable" data-sort-ot="ชื่อ">พนักงาน${otArrow("ชื่อ")}</th>
+      <th class="sortable" data-sort-ot="แผนก">แผนก${otArrow("แผนก")}</th>
+      ${weekDates.map((d, i) => `<th>${dayLabels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`).join("")}
+      <th class="sortable" data-sort-ot="รวม">รวม OT${otArrow("รวม")}</th>
+      <th class="sortable" data-sort-ot="คงเหลือ">OT คงเหลือ${otArrow("คงเหลือ")}</th>
+    </tr>`;
 
     const deptFilter = document.getElementById("filter-dept-ot").value;
     let rows = EMPLOYEES_CACHE.filter(e => deptFilter === "all" || e["แผนก"] === deptFilter).map(e => {
@@ -924,6 +936,7 @@
       rows.sort((a, b) => {
         let av, bv;
         if (otSortKey === "ชื่อ") { av = a.emp["ชื่อ"]; bv = b.emp["ชื่อ"]; }
+        else if (otSortKey === "แผนก") { av = a.emp["แผนก"]; bv = b.emp["แผนก"]; }
         else if (otSortKey === "รวม") { av = a.total; bv = b.total; }
         else if (otSortKey === "คงเหลือ") { av = a.remaining; bv = b.remaining; }
         const cmp = (typeof av === "number") ? av - bv : String(av).localeCompare(String(bv), "th", { numeric: true });
@@ -1075,14 +1088,19 @@
       formatThaiDateShort(monday) + " - " + formatThaiDateShort(lastDate);
 
     const thead = document.getElementById("weekly-thead");
-    thead.innerHTML = '<tr><th class="sortable" data-sort-weekly="ชื่อ">พนักงาน <span class="sort-arrow">' + (weeklySortAsc ? "▲" : "▼") + '</span></th><th>แผนก</th>' + weekDates.map((d, i) =>
-      `<th>${labels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`
-    ).join("") + "</tr>";
+    const arrow = (key) => weeklySortKey === key ? (weeklySortAsc ? " ▲" : " ▼") : "";
+    thead.innerHTML = `<tr>
+      <th class="sortable" data-sort-weekly="ชื่อ">พนักงาน${arrow("ชื่อ")}</th>
+      <th class="sortable" data-sort-weekly="แผนก">แผนก${arrow("แผนก")}</th>
+      ${weekDates.map((d, i) => `<th>${labels[i]} ${d.split("-")[2]}/${d.split("-")[1]}</th>`).join("")}
+    </tr>`;
 
     const deptFilter = document.getElementById("filter-dept-weekly").value;
     let filtered = EMPLOYEES_CACHE.filter(e => deptFilter === "all" || e["แผนก"] === deptFilter);
     filtered = [...filtered].sort((a, b) => {
-      const cmp = String(a["ชื่อ"]).localeCompare(String(b["ชื่อ"]), "th", { numeric: true });
+      const av = weeklySortKey === "แผนก" ? a["แผนก"] : a["ชื่อ"];
+      const bv = weeklySortKey === "แผนก" ? b["แผนก"] : b["ชื่อ"];
+      const cmp = String(av).localeCompare(String(bv), "th", { numeric: true });
       return weeklySortAsc ? cmp : -cmp;
     });
 
@@ -1108,10 +1126,13 @@
     updateWeeklyPendingBar();
   }
 
+  let weeklySortKey = "ชื่อ";
   document.addEventListener("click", e => {
     const th = e.target.closest("[data-sort-weekly]");
     if (!th) return;
-    weeklySortAsc = !weeklySortAsc;
+    const key = th.getAttribute("data-sort-weekly");
+    if (weeklySortKey === key) weeklySortAsc = !weeklySortAsc;
+    else { weeklySortKey = key; weeklySortAsc = true; }
     renderWeeklyTable();
   });
 
@@ -1346,8 +1367,15 @@
       attendanceRowsCache = results.map(r => {
         const emp = empMap[r["รหัสพนักงาน"]];
         const name = emp ? emp["ชื่อ"] : r["รหัสพนักงาน"];
-        return { ...r, _name: name };
+        const dept = emp ? emp["แผนก"] : "";
+        return { ...r, _name: name, _dept: dept };
       });
+
+      const depts = [...new Set(attendanceRowsCache.map(r => r._dept).filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
+      const deptSel = document.getElementById("filter-dept-attendance");
+      const curDept = deptSel.value;
+      deptSel.innerHTML = '<option value="all">ทุกแผนก</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join("");
+      deptSel.value = curDept || "all";
 
       renderAttendanceTable();
     } catch (err) {
@@ -1356,12 +1384,14 @@
   }
 
   function renderAttendanceTable() {
-    let rows = [...attendanceRowsCache];
+    const deptFilter = document.getElementById("filter-dept-attendance").value;
+    let rows = attendanceRowsCache.filter(r => deptFilter === "all" || r._dept === deptFilter);
 
     if (attendanceSortKey) {
       rows.sort((a, b) => {
         let av, bv;
         if (attendanceSortKey === "ชื่อ") { av = a._name; bv = b._name; }
+        else if (attendanceSortKey === "แผนก") { av = a._dept || ""; bv = b._dept || ""; }
         else if (attendanceSortKey === "เข้างาน") { av = a["เวลาเข้างานจริง"] || ""; bv = b["เวลาเข้างานจริง"] || ""; }
         else if (attendanceSortKey === "เลิกงาน") { av = a["เวลาเลิกงาน"] || ""; bv = b["เวลาเลิกงาน"] || ""; }
         else if (attendanceSortKey === "OT") { av = parseFloat(a["จำนวนชั่วโมงOTที่จ่ายจริง"]) || 0; bv = parseFloat(b["จำนวนชั่วโมงOTที่จ่ายจริง"]) || 0; }
@@ -1383,6 +1413,7 @@
 
       return `<tr>
         <td>${r._name}</td>
+        <td>${r._dept || "-"}</td>
         <td>${r["เวลาเข้างานจริง"] || "-"}<br><span style="font-size:11px;">${lateBadge(parseInt(r["สายกี่นาที"]) || 0)}</span></td>
         <td>${r["เวลาเริ่มพักเที่ยง"] || "-"} - ${r["เวลากลับจากพักเที่ยง"] || "-"}</td>
         <td>${r["เวลาเลิกงาน"] || "-"}</td>
